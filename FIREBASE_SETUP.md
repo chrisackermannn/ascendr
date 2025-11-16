@@ -103,8 +103,16 @@ Update your Realtime Database rules in Firebase Console:
         "workouts": {
           ".read": "$uid === auth.uid || auth != null",
           ".write": "$uid === auth.uid || auth != null"
+        },
+        "templates": {
+          ".read": "$uid === auth.uid || auth != null",
+          ".write": "$uid === auth.uid || auth != null"
         }
       }
+    },
+    "posts": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }
