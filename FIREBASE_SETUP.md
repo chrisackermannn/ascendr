@@ -97,6 +97,7 @@ Update your Realtime Database rules in Firebase Console:
 {
   "rules": {
     "users": {
+      ".read": "auth != null",
       "$uid": {
         ".read": "$uid === auth.uid || auth != null",
         ".write": "$uid === auth.uid || auth != null",
@@ -107,12 +108,42 @@ Update your Realtime Database rules in Firebase Console:
         "templates": {
           ".read": "$uid === auth.uid || auth != null",
           ".write": "$uid === auth.uid || auth != null"
+        },
+        "friends": {
+          ".read": "$uid === auth.uid || auth != null",
+          ".write": "$uid === auth.uid || auth != null"
         }
       }
     },
     "posts": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "friendRequests": {
+      "$uid": {
+        ".read": "$uid === auth.uid || auth != null",
+        ".write": "$uid === auth.uid || auth != null"
+      }
+    },
+    "userStatus": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "liveWorkoutInvites": {
+      "$uid": {
+        ".read": "$uid === auth.uid || auth != null",
+        ".write": "$uid === auth.uid || auth != null"
+      }
+    },
+    "liveWorkouts": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "liveWorkoutNotifications": {
+      "$uid": {
+        ".read": "$uid === auth.uid || auth != null",
+        ".write": "$uid === auth.uid || auth != null"
+      }
     }
   }
 }
