@@ -80,8 +80,28 @@ Make sure these packages are added via Swift Package Manager:
 - `FirebaseCore`
 - `FirebaseAuth`
 - `FirebaseDatabase`
+- `FirebaseStorage` ⚠️ **REQUIRED for profile pictures**
 
-Add them via: File → Add Packages... → `https://github.com/firebase/firebase-ios-sdk`
+### Adding Firebase Packages in Xcode:
+
+1. **Open Xcode** and select your project in the navigator
+2. **Select your project target** (Ascendr)
+3. Go to **"Package Dependencies"** tab
+4. Click the **"+"** button to add a package
+5. Enter: `https://github.com/firebase/firebase-ios-sdk`
+6. Click **"Add Package"**
+7. **Select these products** (check the boxes):
+   - ✅ FirebaseCore
+   - ✅ FirebaseAuth
+   - ✅ FirebaseDatabase
+   - ✅ FirebaseStorage ⚠️ **Make sure this is checked!**
+8. Click **"Add Package"**
+9. Make sure all packages are added to your **Ascendr target**
+
+**If FirebaseStorage is missing:**
+- Go to Package Dependencies
+- Find `firebase-ios-sdk`
+- Click the package and ensure `FirebaseStorage` is checked for your target
 
 ## Firebase Configuration
 

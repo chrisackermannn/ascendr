@@ -6,6 +6,10 @@
 	<string>We need access to your photo library to upload profile pictures and progress photos.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take progress photos.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>We need access to your health data to track steps and calories during workouts.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>We need access to update your health data with workout information.</string>
 </dict>
 </plist>
 

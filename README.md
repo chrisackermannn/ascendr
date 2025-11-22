@@ -53,7 +53,13 @@ Ascendr/
 1. Add Firebase SDK via Swift Package Manager:
    - File → Add Packages...
    - Enter: `https://github.com/firebase/firebase-ios-sdk`
-   - Select: FirebaseAuth, FirebaseFirestore, FirebaseStorage, FirebaseCore
+   - Select these products (check all boxes):
+     - ✅ FirebaseCore
+     - ✅ FirebaseAuth
+     - ✅ FirebaseDatabase
+     - ✅ FirebaseStorage ⚠️ **Required for profile pictures**
+   
+   **Note:** If you get "Unable to find module dependency: 'FirebaseStorage'", see `ADD_FIREBASE_STORAGE.md` for detailed instructions.
 
 ### 3. Configure Firebase
 
