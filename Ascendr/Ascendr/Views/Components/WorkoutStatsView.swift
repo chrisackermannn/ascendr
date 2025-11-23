@@ -9,6 +9,7 @@ import SwiftUI
 
 struct WorkoutStatsView: View {
     let startTime: Date?
+    @EnvironmentObject var appSettings: AppSettings
     @State private var elapsedTime: TimeInterval = 0
     @State private var stepCount: Int = 0
     @State private var calories: Double = 0
@@ -18,7 +19,7 @@ struct WorkoutStatsView: View {
     private let healthKitService = HealthKitService()
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             // Timer - Large and prominent
             VStack(spacing: 8) {
                 Text("Workout Time")
@@ -28,23 +29,33 @@ struct WorkoutStatsView: View {
                     .tracking(1)
                 
                 Text(formatTime(elapsedTime))
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundStyle(appSettings.buttonGradient)
                     .monospacedDigit()
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
+            .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemGray6))
+                    .fill(
+                        LinearGradient(
+                            colors: [appSettings.cardBackground, appSettings.secondaryBackground],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                            .stroke(
+                                appSettings.buttonGradient,
+                                lineWidth: 2
+                            )
                     )
+                    .shadow(color: appSettings.accentColor.opacity(0.15), radius: 15, x: 0, y: 8)
             )
             
             // HealthKit stats
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 // Steps
                 StatCard(
                     icon: "figure.walk",
@@ -174,16 +185,19 @@ struct StatCard: View {
     let title: String
     let value: String
     let color: Color
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(
+                    appSettings.buttonGradient
+                )
             
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
             
             Text(title)
                 .font(.caption)
@@ -192,11 +206,15 @@ struct StatCard: View {
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(appSettings.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(color.opacity(0.3), lineWidth: 1.5)
+                )
+                .shadow(color: color.opacity(appSettings.isDarkMode ? 0.2 : 0.1), radius: 8, x: 0, y: 4)
         )
     }
 }
@@ -204,6 +222,7 @@ struct StatCard: View {
 // Compact version for live workouts
 struct CompactWorkoutStatsView: View {
     let startTime: Date?
+    @EnvironmentObject var appSettings: AppSettings
     @State private var elapsedTime: TimeInterval = 0
     @State private var timer: Timer?
     @State private var timerStartTime: Date?
@@ -225,10 +244,17 @@ struct CompactWorkoutStatsView: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(.systemGray6))
+                    .fill(appSettings.cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [appSettings.accentColor.opacity(0.2), appSettings.accentColorSecondary.opacity(0.2)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                lineWidth: 1.5
+                            )
                     )
             )
         }

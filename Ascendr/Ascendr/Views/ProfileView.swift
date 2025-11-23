@@ -10,71 +10,59 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject var profileViewModel: ProfileViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
-    @State private var showingImagePicker = false
-    @State private var selectedImage: UIImage?
+    @EnvironmentObject var appSettings: AppSettings
     @State private var selectedWorkout: Workout?
     @State private var showingSettings = false
+    @State private var selectedTab: ProfileTab = .recent
+    
+    enum ProfileTab {
+        case recent
+        case shared
+    }
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Profile Header
-                    VStack(spacing: 20) {
+                    VStack(spacing: 14) {
                         // Profile Image with online indicator
                         ZStack(alignment: .bottomTrailing) {
-                            Button(action: {
-                                showingImagePicker = true
-                            }) {
-                                ZStack {
-                                    AsyncImage(url: URL(string: authViewModel.currentUser?.profileImageURL ?? "")) { image in
-                                        image
+                            ZStack {
+                                AsyncImage(url: URL(string: authViewModel.currentUser?.profileImageURL ?? "")) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(appSettings.cardBackground)
+                                        Image(systemName: "person.circle.fill")
                                             .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    } placeholder: {
-                                        ZStack {
-                                            Circle()
-                                                .fill(Color(.systemGray6))
-                                            Image(systemName: "person.circle.fill")
-                                                .resizable()
-                                                .foregroundColor(.secondary)
-                                        }
+                                            .foregroundColor(.secondary)
                                     }
-                                    .frame(width: 120, height: 120)
-                                    .clipShape(Circle())
-                                    
-                                    // Border
-                                    Circle()
-                                        .stroke(Color.black, lineWidth: 3)
-                                        .frame(width: 120, height: 120)
                                 }
+                                    .frame(width: 90, height: 90)
+                                .clipShape(Circle())
+                                
+                                // Border
+                                Circle()
+                                    .stroke(
+                                        appSettings.buttonGradient,
+                                        lineWidth: 3
+                                    )
+                                    .frame(width: 90, height: 90)
                             }
-                            .buttonStyle(.plain)
                             
                             // Online indicator (always shown for own profile)
                             Circle()
-                                .fill(Color.primary)
-                                .frame(width: 24, height: 24)
+                                .fill(appSettings.accentColor)
+                                .frame(width: 18, height: 18)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color(.systemBackground), lineWidth: 3)
+                                        .stroke(appSettings.primaryBackground, lineWidth: 2.5)
                                 )
-                            
-                            // Edit button overlay
-                            Button(action: {
-                                showingImagePicker = true
-                            }) {
-                                Circle()
-                                    .fill(Color.black)
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Image(systemName: "camera.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 14, weight: .semibold))
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .offset(x: 40, y: 40)
+                                .shadow(color: appSettings.accentColor.opacity(0.3), radius: 8, x: 0, y: 0)
                         }
                         
                         VStack(spacing: 8) {
@@ -95,7 +83,7 @@ struct ProfileView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(12)
                     
                     // Stats - Enhanced
                     HStack(spacing: 20) {
@@ -113,14 +101,14 @@ struct ProfileView: View {
                             color: .primary
                         )
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 12)
                     
                     // Progress Pics Section
                     if !profileViewModel.progressPics.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Progress Pics")
                                 .font(.headline)
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
@@ -139,29 +127,80 @@ struct ProfileView: View {
                                         }
                                     }
                                 }
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                             }
                         }
                     }
                     
-                    // Workout History
+                    // Workout History with Tabs
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Recent Workouts")
-                            .font(.headline)
-                            .padding(.horizontal)
+                        // Tab selector
+                        HStack(spacing: 0) {
+                            ProfileTabButton(
+                                title: "Recent",
+                                isSelected: selectedTab == .recent,
+                                action: { selectedTab = .recent }
+                            )
+                            
+                            ProfileTabButton(
+                                title: "Shared",
+                                isSelected: selectedTab == .shared,
+                                action: { selectedTab = .shared }
+                            )
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         
-                        if profileViewModel.workouts.isEmpty {
-                            Text("No workouts yet. Start your first workout!")
-                                .foregroundColor(.secondary)
-                                .padding()
-                        } else {
-                            ForEach(profileViewModel.workouts.prefix(5)) { workout in
-                                Button(action: {
-                                    selectedWorkout = workout
-                                }) {
-                                    WorkoutHistoryCard(workout: workout)
+                        // Content based on selected tab
+                        if selectedTab == .recent {
+                            if profileViewModel.workouts.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "figure.strengthtraining.traditional")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.secondary.opacity(0.3))
+                                    Text("No workouts yet")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    Text("Start your first workout!")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
                                 }
-                                .buttonStyle(.plain)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 40)
+                            } else {
+                                ForEach(profileViewModel.workouts) { workout in
+                                    Button(action: {
+                                        selectedWorkout = workout
+                                    }) {
+                                        WorkoutHistoryCard(workout: workout)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        } else {
+                            if profileViewModel.sharedWorkouts.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "person.2.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.secondary.opacity(0.3))
+                                    Text("No shared workouts yet")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    Text("Start a live workout with a friend!")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 40)
+                            } else {
+                                ForEach(profileViewModel.sharedWorkouts) { workout in
+                                    Button(action: {
+                                        selectedWorkout = workout
+                                    }) {
+                                        SharedWorkoutCard(workout: workout)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
@@ -173,11 +212,11 @@ struct ProfileView: View {
                         Text("Sign Out")
                             .foregroundColor(.red)
                             .frame(maxWidth: .infinity)
-                            .padding()
+                            .padding(12)
                             .background(Color.red.opacity(0.1))
                             .cornerRadius(10)
                     }
-                    .padding()
+                    .padding(12)
                 }
             }
             .navigationTitle("")
@@ -186,7 +225,13 @@ struct ProfileView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
                         .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(.black)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .allowsHitTesting(false)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -200,25 +245,8 @@ struct ProfileView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
                     .environmentObject(authViewModel)
-            }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage)
-            }
-            .onChange(of: selectedImage) { oldValue, newValue in
-                if let image = newValue, let userId = authViewModel.currentUser?.id {
-                    Task {
-                        await profileViewModel.updateProfileImage(image, userId: userId)
-                        // Refresh current user data in auth view model
-                        let databaseService = RealtimeDatabaseService()
-                        if let updatedUser = try? await databaseService.fetchUser(userId: userId) {
-                            await MainActor.run {
-                                authViewModel.currentUser = updatedUser
-                            }
-                        }
-                        // Clear selected image after processing
-                        selectedImage = nil
-                    }
-                }
+                    .environmentObject(profileViewModel)
+                    .environmentObject(AppSettings.shared)
             }
             .sheet(item: $selectedWorkout) { workout in
                 WorkoutDetailView(workout: workout)
@@ -236,18 +264,19 @@ struct ProfileView: View {
 
 struct WorkoutHistoryCard: View {
     let workout: Workout
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
         HStack(spacing: 16) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(Color(.systemGray6))
+                    .fill(appSettings.cardBackground)
                     .frame(width: 50, height: 50)
                 
                 Image(systemName: "figure.strengthtraining.traditional")
                     .foregroundColor(.primary)
-                    .font(.title3)
+                    .font(.system(size: 16, weight: .semibold))
             }
             
             // Content
@@ -269,7 +298,7 @@ struct WorkoutHistoryCard: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color(.systemGray6))
+                        .background(appSettings.cardBackground)
                         .cornerRadius(8)
                     }
                 }
@@ -293,13 +322,148 @@ struct WorkoutHistoryCard: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .padding()
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .fill(appSettings.cardBackground)
+                .shadow(color: Color.black.opacity(appSettings.isDarkMode ? 0.05 : 0.02), radius: 5, x: 0, y: 2)
         )
-        .padding(.horizontal)
+        .padding(.horizontal, 12)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+struct ProfileTabButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    @EnvironmentObject var appSettings: AppSettings
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .fontWeight(isSelected ? .bold : .medium)
+                .foregroundColor(isSelected ? .primary : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    Group {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ),
+                                            lineWidth: 2
+                                        )
+                                )
+                        } else {
+                            Color.clear
+                        }
+                    }
+                )
+        }
+    }
+}
+
+struct SharedWorkoutCard: View {
+    let workout: Workout
+    @EnvironmentObject var appSettings: AppSettings
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(appSettings.cardBackground)
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: "person.2.fill")
+                    .foregroundColor(.primary)
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            
+            // Content
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(workout.date, style: .date)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    if let partnerName = workout.partnerName {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.fill")
+                                .font(.caption2)
+                            Text(partnerName)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(appSettings.cardBackground)
+                        .cornerRadius(8)
+                    }
+                }
+                
+                HStack(spacing: 16) {
+                    Label("\(workout.exercises.count) exercises", systemImage: "list.bullet")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    if workout.duration > 0 {
+                        Label(formatDuration(workout.duration), systemImage: "clock")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // Show combined stats
+                let totalWeight = workout.exercises.reduce(0) { total, exercise in
+                    total + exercise.sets.reduce(0) { setTotal, set in
+                        setTotal + (set.weight * Double(set.reps))
+                    }
+                }
+                
+                if totalWeight > 0 {
+                    Text("Combined: \(Int(totalWeight)) lbs")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(appSettings.cardBackground)
+                .shadow(color: Color.black.opacity(appSettings.isDarkMode ? 0.05 : 0.02), radius: 5, x: 0, y: 2)
+        )
+        .padding(.horizontal, 12)
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -363,7 +527,7 @@ struct WorkoutDetailView: View {
                     // Header
                     VStack(alignment: .leading, spacing: 8) {
                         Text(workout.date, style: .date)
-                            .font(.title2)
+                            .font(.system(size: 18, weight: .semibold))
                             .fontWeight(.bold)
                         
                         if workout.duration > 0 {
@@ -378,7 +542,7 @@ struct WorkoutDetailView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    .padding()
+                    .padding(12)
                     
                     Divider()
                     
@@ -386,7 +550,7 @@ struct WorkoutDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Exercises")
                             .font(.headline)
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                         
                         ForEach(workout.exercises) { exercise in
                             ExerciseDetailCard(exercise: exercise)
@@ -418,6 +582,7 @@ struct StatCardView: View {
     let label: String
     let icon: String
     let color: Color
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
         VStack(spacing: 8) {
@@ -436,17 +601,29 @@ struct StatCardView: View {
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .fill(appSettings.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 10, x: 0, y: 4)
         )
     }
 }
 
 struct ExerciseDetailCard: View {
     let exercise: Exercise
+    @EnvironmentObject var appSettings: AppSettings
     
     private var isBodyweightOrCardio: Bool {
         guard let equipment = exercise.equipment else { return false }
@@ -502,10 +679,10 @@ struct ExerciseDetailCard: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
+        .padding(12)
+                        .background(appSettings.cardBackground)
         .cornerRadius(10)
-        .padding(.horizontal)
+        .padding(.horizontal, 12)
     }
 }
 

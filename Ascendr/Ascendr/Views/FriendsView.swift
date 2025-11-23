@@ -335,13 +335,14 @@ struct InviteWorkoutView: View {
     @Environment(\.dismiss) var dismiss
     @State private var isSending = false
     @State private var errorMessage: String?
+    @State private var showingWaitingRoom = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
                 Image(systemName: "figure.run")
                     .font(.system(size: 60))
-                    .foregroundColor(.blue)
+                    .foregroundColor(.primary)
                 
                 Text("Invite \(friendName)")
                     .font(.title2)
@@ -373,7 +374,7 @@ struct InviteWorkoutView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(isSending ? Color.gray : Color.blue)
+                    .background(isSending ? Color.gray : Color.black)
                     .cornerRadius(12)
                 }
                 .disabled(isSending)
@@ -388,6 +389,9 @@ struct InviteWorkoutView: View {
                         dismiss()
                     }
                 }
+            }
+            .fullScreenCover(isPresented: $showingWaitingRoom) {
+                WaitingRoomView(friendName: friendName, friendId: friendId)
             }
         }
     }
@@ -406,8 +410,9 @@ struct InviteWorkoutView: View {
                         to: friendId
                     )
                     await MainActor.run {
+                        isSending = false
+                        showingWaitingRoom = true
                         onInviteSent()
-                        dismiss()
                     }
                 } else {
                     await MainActor.run {

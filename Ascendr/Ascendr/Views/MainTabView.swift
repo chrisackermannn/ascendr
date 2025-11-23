@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @StateObject private var feedViewModel = FeedViewModel()
     @StateObject private var workoutViewModel = WorkoutViewModel()
     @StateObject private var profileViewModel = ProfileViewModel()
@@ -22,6 +23,7 @@ struct MainTabView: View {
                 }
                 .environmentObject(feedViewModel)
                 .environmentObject(authViewModel)
+                .environmentObject(appSettings)
             
             WorkoutView()
                 .tabItem {
@@ -29,6 +31,7 @@ struct MainTabView: View {
                 }
                 .environmentObject(workoutViewModel)
                 .environmentObject(authViewModel)
+                .environmentObject(appSettings)
             
             ProfileView()
                 .tabItem {
@@ -36,7 +39,9 @@ struct MainTabView: View {
                 }
                 .environmentObject(profileViewModel)
                 .environmentObject(authViewModel)
+                .environmentObject(appSettings)
         }
+        .tint(appSettings.accentColor)
         .onAppear {
             if let userId = authViewModel.currentUser?.id {
                 Task {

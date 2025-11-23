@@ -2,126 +2,136 @@
 //  StepCounterView.swift
 //  Ascendr
 //
-//  Live step counter component from Apple Health
+//  Step counter using HKStatisticsCollectionQuery for live updates
 //
 
 import SwiftUI
+import HealthKit
 import Combine
 
-@MainActor
-class StepCounterViewModel: ObservableObject {
-    static let shared = StepCounterViewModel()
+class StepCounterManager: ObservableObject {
+    static let shared = StepCounterManager()
     
     @Published var stepCount: Int = 0
-    private var updateTimer: Timer?
-    private var hasRequestedAuth = false
-    private var isInitialized = false
-    private let healthKitService = HealthKitService()
+    
+    private let healthStore = HKHealthStore()
+    private var statisticsCollectionQuery: HKStatisticsCollectionQuery?
     
     private init() {
-        // Private initializer for singleton
+        requestAuthorization()
     }
     
-    func initialize() {
-        guard !isInitialized else { return }
-        isInitialized = true
+    // MARK: - HealthKit Authorization
+    private func requestAuthorization() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
         
-        Task {
-            await requestHealthKitAccessIfNeeded()
-            await loadSteps()
-            startUpdating()
-        }
-    }
-    
-    func refresh() {
-        // Always refresh when called
-        Task {
-            await loadSteps()
-        }
-    }
-    
-    private func requestHealthKitAccessIfNeeded() async {
-        guard !hasRequestedAuth else { return }
-        hasRequestedAuth = true
+        let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         
-        do {
-            try await healthKitService.requestAuthorization()
-            print("✅ HealthKit authorization requested successfully")
-        } catch {
-            print("❌ HealthKit authorization error: \(error.localizedDescription)")
-        }
-        
-        // Try loading steps immediately after authorization
-        await loadSteps()
-        
-        // Retry after a short delay to ensure data is available
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        await loadSteps()
-    }
-    
-    private func loadSteps() async {
-        do {
-            let steps = try await healthKitService.getTodayStepCount()
-            await MainActor.run {
-                let oldCount = self.stepCount
-                self.stepCount = steps
-                if oldCount != steps {
-                    print("📊 Step count updated: \(oldCount) → \(steps)")
+        healthStore.requestAuthorization(toShare: nil, read: [stepType]) { [weak self] success, error in
+            if success {
+                DispatchQueue.main.async {
+                    self?.startLiveStepQuery()
                 }
-            }
-        } catch {
-            print("❌ Error loading steps: \(error.localizedDescription)")
-        }
-    }
-    
-    private func startUpdating() {
-        // Stop any existing timer first
-        stopUpdating()
-        
-        // Load immediately
-        Task {
-            await loadSteps()
-        }
-        
-        // Update every 2 seconds for live updates
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                await self?.loadSteps()
+            } else {
+                print("HealthKit authorization failed: \(error?.localizedDescription ?? "Unknown error")")
             }
         }
-        RunLoop.main.add(updateTimer!, forMode: .common)
-        print("🔄 Step counter timer started (updates every 2 seconds)")
     }
     
-    func stopUpdating() {
-        updateTimer?.invalidate()
-        updateTimer = nil
+    // MARK: - Live Step Query
+    private func startLiveStepQuery() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        
+        let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        
+        // Use daily interval to get today's total
+        let interval = DateComponents(day: 1)
+        
+        let query = HKStatisticsCollectionQuery(
+            quantityType: stepType,
+            quantitySamplePredicate: nil,
+            options: .cumulativeSum,
+            anchorDate: startOfDay,
+            intervalComponents: interval
+        )
+        
+        // Initial value
+        query.initialResultsHandler = { [weak self] _, results, _ in
+            self?.updateSteps(from: results)
+        }
+        
+        // Live updates
+        query.statisticsUpdateHandler = { [weak self] _, _, results, _ in
+            self?.updateSteps(from: results)
+        }
+        
+        statisticsCollectionQuery = query
+        healthStore.execute(query)
     }
     
-    // Note: deinit is not needed since this is a singleton that lives for the app's lifetime
+    private func updateSteps(from results: HKStatisticsCollection?) {
+        let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
+        
+        var totalSteps = 0
+        
+        results?.enumerateStatistics(from: startOfDay, to: now) { stats, _ in
+            if let quantity = stats.sumQuantity() {
+                let steps = Int(quantity.doubleValue(for: HKUnit.count()))
+                totalSteps += steps
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.stepCount = totalSteps
+            print("✅ Steps updated: \(totalSteps)")
+        }
+    }
+    
+    func stopQuery() {
+        if let query = statisticsCollectionQuery {
+            healthStore.stop(query)
+            statisticsCollectionQuery = nil
+        }
+    }
+    
+    deinit {
+        stopQuery()
+    }
 }
 
 struct StepCounterView: View {
-    @StateObject private var viewModel = StepCounterViewModel.shared
+    @StateObject private var manager = StepCounterManager.shared
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Image(systemName: "figure.walk")
-                .font(.caption)
-                .foregroundColor(.primary)
-            Text("\(viewModel.stepCount)")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.primary)
-                .monospacedDigit() // Prevents number jumping when digits change
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(
+                    appSettings.buttonGradient
+                )
+            
+            Text("\(manager.stepCount)")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .monospacedDigit()
         }
-        .task {
-            // Initialize on first appearance
-            viewModel.initialize()
-        }
-        .onAppear {
-            // Always refresh when view appears (every page navigation)
-            viewModel.refresh()
-        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(appSettings.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            appSettings.buttonGradient.opacity(0.3),
+                            lineWidth: 1.5
+                        )
+                )
+        )
+        .allowsHitTesting(false)
     }
 }
-

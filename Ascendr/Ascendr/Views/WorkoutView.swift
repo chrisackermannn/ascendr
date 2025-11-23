@@ -6,10 +6,12 @@
 //
 
 import SwiftUI
+import FirebaseDatabase
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutViewModel: WorkoutViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @StateObject private var friendsViewModel = FriendsViewModel()
     @State private var showingFriendsSearch = false
     @State private var showingExercisePicker = false
@@ -17,41 +19,46 @@ struct WorkoutView: View {
     @State private var selectedCategory: ExerciseCategory? = nil
     @State private var showingPostToFeed = false
     @State private var showingTemplatePicker = false
+    @State private var showingPendingRequests = false
+    @State private var pendingInvites: [LiveWorkoutInvite] = []
     
     var body: some View {
         NavigationView {
             VStack {
                 if workoutViewModel.currentWorkout == nil {
                     // Start workout screen
-                    VStack(spacing: 24) {
+                    VStack(spacing: 16) {
                         Spacer()
                         
                         // Welcome
-                        VStack(spacing: 16) {
+                        VStack(spacing: 12) {
                             Text("Ready to train?")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(appSettings.primaryText)
                         }
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 12)
                         
-                        VStack(spacing: 16) {
+                        VStack(spacing: 12) {
                             Button(action: {
                                 startWorkout()
                             }) {
                                 HStack(spacing: 12) {
                                     Image(systemName: "play.circle.fill")
-                                        .font(.title3)
+                                        .font(.system(size: 16, weight: .semibold))
                                     Text("Start New Workout")
                                         .fontWeight(.semibold)
                                 }
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.black)
-                                .cornerRadius(14)
-                                .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(
+                                    appSettings.buttonGradient
+                                )
+                                .cornerRadius(10)
+                                .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                         
                             Button(action: {
                                 showingTemplatePicker = true
@@ -61,19 +68,20 @@ struct WorkoutView: View {
                                     Text("Use Template")
                                         .fontWeight(.medium)
                                 }
-                                .foregroundColor(.primary)
+                                .foregroundColor(appSettings.primaryText)
                                 .frame(maxWidth: .infinity)
-                                .padding()
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.systemGray6))
+                                        .fill(appSettings.secondaryBackground)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                                .stroke(appSettings.accentColor.opacity(0.3), lineWidth: 1.5)
                                         )
-                                )
+                                        )
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                             
                             Button(action: {
                                 showingFriendsSearch = true
@@ -83,19 +91,50 @@ struct WorkoutView: View {
                                     Text("Start Live Workout")
                                         .fontWeight(.medium)
                                 }
-                                .foregroundColor(.primary)
+                                .foregroundColor(appSettings.primaryText)
                                 .frame(maxWidth: .infinity)
-                                .padding()
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.systemGray6))
+                                        .fill(appSettings.secondaryBackground)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                                .stroke(Color(red: 1, green: 0, blue: 0.43).opacity(0.5), lineWidth: 1.5)
                                         )
                                 )
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
+                            
+                            // Pending Live Workout Requests button
+                            Button(action: {
+                                showingPendingRequests = true
+                                loadPendingInvites()
+                            }) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "bell.fill")
+                                    Text("Pending Requests")
+                                        .fontWeight(.medium)
+                                    
+                                    if !pendingInvites.isEmpty {
+                                        Text("(\(pendingInvites.count))")
+                                            .fontWeight(.bold)
+                                    }
+                                }
+                                .foregroundColor(appSettings.primaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(appSettings.secondaryBackground)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color(red: 1, green: 0.75, blue: 0.04).opacity(0.5), lineWidth: 1.5)
+                                        )
+                                )
+                            }
+                            .padding(.horizontal, 12)
                         }
                         
                         Spacer()
@@ -118,20 +157,21 @@ struct WorkoutView: View {
                                         .fontWeight(.medium)
                                     Spacer()
                                 }
-                                .padding()
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(Color(.systemGray6))
                                 )
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                             }
                             
                             // Exercises section
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Exercises")
-                                    .font(.title3)
+                                    .font(.system(size: 16, weight: .semibold))
                                     .fontWeight(.bold)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, 12)
                                 
                                 ForEach(workoutViewModel.exercises) { exercise in
                                     ExerciseCardView(exercise: exercise, workoutViewModel: workoutViewModel)
@@ -147,16 +187,19 @@ struct WorkoutView: View {
                                             .fontWeight(.semibold)
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color(.systemGray6))
-                                    .foregroundColor(.primary)
-                                    .cornerRadius(12)
-                                    .overlay(
+                                    .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                    .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                            .fill(appSettings.secondaryBackground)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(appSettings.accentColor.opacity(0.3), lineWidth: 1.5)
+                                            )
                                     )
+                                    .foregroundColor(appSettings.primaryText)
                                 }
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                             }
                             
                             // Error message
@@ -168,11 +211,12 @@ struct WorkoutView: View {
                                         .font(.caption)
                                         .foregroundColor(.red)
                                 }
-                                .padding()
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                 .frame(maxWidth: .infinity)
                                 .background(Color.red.opacity(0.1))
                                 .cornerRadius(8)
-                                .padding(.horizontal)
+                                .padding(.horizontal, 12)
                             }
                             
                             // Finish workout button
@@ -185,11 +229,12 @@ struct WorkoutView: View {
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-                                    .padding()
+                                    .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                     .frame(maxWidth: .infinity)
                                     .background(Color(.systemGray6))
                                     .cornerRadius(10)
-                                    .padding(.horizontal)
+                                    .padding(.horizontal, 12)
                                 }
                                 
                                 Button(action: {
@@ -205,19 +250,30 @@ struct WorkoutView: View {
                                                 .fontWeight(.semibold)
                                         }
                                     }
-                                    .font(.headline)
-                                    .foregroundColor(.white)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(workoutViewModel.canFinishWorkout ? .white : appSettings.primaryText)
                                     .frame(maxWidth: .infinity)
-                                    .padding()
+                                    .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                                     .background(
-                                        workoutViewModel.canFinishWorkout ? Color.black : Color.gray
+                                        Group {
+                                            if workoutViewModel.canFinishWorkout {
+                                                LinearGradient(
+                                                    colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            } else {
+                                                appSettings.secondaryBackground
+                                            }
+                                        }
                                     )
-                                    .cornerRadius(14)
-                                    .shadow(color: workoutViewModel.canFinishWorkout ? Color.black.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 4)
+                                    .cornerRadius(10)
+                                    .shadow(color: workoutViewModel.canFinishWorkout ? appSettings.accentColor.opacity(0.2) : Color.clear, radius: 12, x: 0, y: 6)
                                 }
                                 .disabled(workoutViewModel.isLoading || !workoutViewModel.canFinishWorkout)
                             }
-                            .padding()
+                            .padding(12)
                         }
                     }
                 }
@@ -225,13 +281,10 @@ struct WorkoutView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    StepCounterView()
-                }
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(.black)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(appSettings.primaryText)
                         .allowsHitTesting(false)
                 }
             }
@@ -266,6 +319,77 @@ struct WorkoutView: View {
                 .environmentObject(workoutViewModel)
                 .environmentObject(authViewModel)
             }
+            .sheet(isPresented: $showingPendingRequests) {
+                PendingLiveWorkoutRequestsView(
+                    invites: $pendingInvites,
+                    onAccept: { invite in
+                        if let userId = authViewModel.currentUser?.id,
+                           let userName = authViewModel.currentUser?.username {
+                            Task {
+                                await acceptLiveWorkoutInvite(invite: invite, userId: userId, userName: userName)
+                            }
+                        }
+                        showingPendingRequests = false
+                    }
+                )
+                .environmentObject(friendsViewModel)
+                .environmentObject(authViewModel)
+            }
+            .onAppear {
+                loadPendingInvites()
+            }
+        }
+    }
+    
+    private func loadPendingInvites() {
+        Task {
+            if let userId = authViewModel.currentUser?.id {
+                let databaseService = RealtimeDatabaseService()
+                if let invites = try? await databaseService.fetchPendingLiveWorkoutInvites(userId: userId) {
+                    await MainActor.run {
+                        pendingInvites = invites
+                    }
+                }
+            }
+        }
+    }
+    
+    private func acceptLiveWorkoutInvite(invite: LiveWorkoutInvite, userId: String, userName: String) async {
+        do {
+            let databaseService = RealtimeDatabaseService()
+            if let sessionId = try await databaseService.acceptLiveWorkoutInvite(
+                inviteId: invite.inviteId,
+                toUserId: userId,
+                toUserName: userName
+            ) {
+                // Notify the inviter to join the session
+                let notificationRef = Database.database().reference()
+                    .child("liveWorkoutNotifications")
+                    .child(invite.fromUserId)
+                    .child(sessionId)
+                
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    notificationRef.setValue([
+                        "sessionId": sessionId,
+                        "timestamp": Date().timeIntervalSince1970
+                    ]) { error, _ in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
+                    }
+                }
+                
+                // Start the live workout
+                await MainActor.run {
+                    let liveWorkoutViewModel = LiveWorkoutViewModel()
+                    liveWorkoutViewModel.startLiveWorkout(sessionId: sessionId, currentUserId: userId)
+                    // This will be handled by the view that shows the live workout
+                }
+            }
+        } catch {
+            print("Error accepting invite: \(error)")
         }
     }
     
@@ -302,11 +426,13 @@ struct WorkoutView: View {
 struct ExerciseCardView: View {
     let exercise: Exercise
     @ObservedObject var workoutViewModel: WorkoutViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @State private var reps = ""
     @State private var weight = ""
     @State private var timeMinutes = ""
     @State private var timeSeconds = ""
     @State private var distance = ""
+    @State private var showingInstructions = false
     
     private var isBodyweightOrCardio: Bool {
         guard let equipment = exercise.equipment else { return false }
@@ -333,12 +459,12 @@ struct ExerciseCardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             // Exercise header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(exercise.name)
-                        .font(.headline)
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.primary)
                     
                     if let equipment = exercise.equipment {
@@ -349,6 +475,21 @@ struct ExerciseCardView: View {
                 }
                 
                 Spacer()
+                
+                // Info button - on far side of name box
+                if let exerciseItem = ExerciseLibrary.shared.exercises.first(where: { $0.name == exercise.name }),
+                   exerciseItem.instructions != nil {
+                    Button(action: {
+                        showingInstructions = true
+                    }) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(appSettings.accentColor)
+                    }
+                    .sheet(isPresented: $showingInstructions) {
+                        ExerciseInstructionsView(exercise: exerciseItem)
+                    }
+                }
                 
                 if exercise.sets.isEmpty {
                     Label("No sets", systemImage: "exclamationmark.circle")
@@ -531,22 +672,41 @@ struct ExerciseCardView: View {
                     }
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
+                    .foregroundColor(canAddSet ? .white : appSettings.primaryText)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(canAddSet ? Color.black : Color.gray)
+                    .background(
+                        Group {
+                            if canAddSet {
+                                appSettings.buttonGradient
+                            } else {
+                                appSettings.secondaryBackground
+                            }
+                        }
+                    )
                     .cornerRadius(8)
                 }
                 .disabled(!canAddSet)
             }
         }
-        .padding()
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+                .fill(appSettings.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [appSettings.accentColor.opacity(0.2), appSettings.accentColorSecondary.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
+                )
+                .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.15 : 0.1), radius: 12, x: 0, y: 6)
         )
-        .padding(.horizontal)
+        .padding(.horizontal, 12)
     }
     
     private func addSet() {
@@ -659,10 +819,10 @@ struct ExercisePickerView: View {
                     TextField("Search exercises...", text: $searchText)
                         .textFieldStyle(.plain)
                 }
-                .padding()
+                .padding(12)
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
                 .padding(.top, 8)
                 
                 // Category filter
@@ -684,7 +844,7 @@ struct ExercisePickerView: View {
                             }
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                 }
                 
@@ -715,17 +875,26 @@ struct CategoryChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .white : .primary)
+                .foregroundColor(isSelected ? .white : appSettings.primaryText)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.black : Color(.systemGray5))
-                .cornerRadius(20)
+                .background(
+                    Group {
+                        if isSelected {
+                            appSettings.buttonGradient
+                        } else {
+                            appSettings.secondaryBackground
+                        }
+                    }
+                )
+                .cornerRadius(16)
         }
     }
 }
@@ -733,66 +902,85 @@ struct CategoryChip: View {
 struct ExerciseRowView: View {
     let exercise: ExerciseItem
     let onSelect: () -> Void
+    @EnvironmentObject var appSettings: AppSettings
+    @State private var showingInstructions = false
     
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                // Exercise GIF/Image placeholder
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray6))
-                        .frame(width: 60, height: 60)
-                    
-                    if let gifURL = exercise.gifURL, !gifURL.isEmpty {
-                        AsyncImage(url: URL(string: gifURL)) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
+        HStack(spacing: 12) {
+            Button(action: onSelect) {
+                HStack(spacing: 12) {
+                    // Exercise GIF/Image placeholder
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemGray6))
+                            .frame(width: 60, height: 60)
+                        
+                        if let gifURL = exercise.gifURL, !gifURL.isEmpty {
+                            AsyncImage(url: URL(string: gifURL)) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Image(systemName: "figure.strengthtraining.traditional")
+                                    .foregroundColor(.primary)
+                            }
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        } else {
                             Image(systemName: "figure.strengthtraining.traditional")
+                                .font(.title2)
                                 .foregroundColor(.primary)
                         }
-                        .frame(width: 60, height: 60)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else {
-                        Image(systemName: "figure.strengthtraining.traditional")
-                            .font(.title2)
-                            .foregroundColor(.primary)
                     }
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(exercise.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
                     
-                    HStack(spacing: 8) {
-                        Label(exercise.category.rawValue, systemImage: "tag.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(exercise.name)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
                         
-                        Label(exercise.equipment.rawValue, systemImage: "dumbbell.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 8) {
+                            Label(exercise.category.rawValue, systemImage: "tag.fill")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Label(exercise.equipment.rawValue, systemImage: "dumbbell.fill")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
+                    
+                    Spacer()
                 }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.plain)
+            
+            // Info button
+            if exercise.instructions != nil {
+                Button(action: {
+                    showingInstructions = true
+                }) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(appSettings.accentColor)
+                }
+                .sheet(isPresented: $showingInstructions) {
+                    ExerciseInstructionsView(exercise: exercise)
+                }
+            }
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary)
+                .font(.caption)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 4)
     }
 }
 
 struct PostToFeedView: View {
     let onFinish: (Bool) -> Void
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appSettings: AppSettings
     @State private var shouldPost = false
     
     var body: some View {
@@ -803,17 +991,20 @@ struct PostToFeedView: View {
                 // Success animation
                 ZStack {
                     Circle()
-                        .fill(Color(.systemGray6))
+                        .fill(
+                            appSettings.buttonGradient
+                        )
                         .frame(width: 120, height: 120)
+                        .shadow(color: appSettings.accentColor.opacity(0.2), radius: 20, x: 0, y: 10)
                     
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 70))
-                        .foregroundColor(.black)
+                        .font(.system(size: 50))
+                        .foregroundColor(appSettings.isDarkMode ? .white : appSettings.primaryText)
                 }
                 
                 VStack(spacing: 12) {
                     Text("Workout Complete!")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                     
                     Text("Great job finishing your workout!")
@@ -829,7 +1020,7 @@ struct PostToFeedView: View {
                             Image(systemName: "square.and.arrow.up.fill")
                                 .foregroundColor(.primary)
                             Text("Share to Feed")
-                                .font(.headline)
+                                .font(.system(size: 15, weight: .semibold))
                         }
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .black))
@@ -841,12 +1032,12 @@ struct PostToFeedView: View {
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding()
+                .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color(.systemGray6))
                 )
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
                 
                 Spacer()
                 
@@ -860,16 +1051,18 @@ struct PostToFeedView: View {
                             .fontWeight(.semibold)
                     }
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(appSettings.isDarkMode ? .white : .white)
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.black)
-                    .cornerRadius(14)
-                    .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    .padding(12)
+                    .background(
+                        appSettings.buttonGradient
+                    )
+                    .cornerRadius(10)
+                    .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
                 }
-                .padding()
+                .padding(12)
             }
-            .padding()
+            .padding(12)
             .navigationTitle("Finish Workout")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -888,7 +1081,7 @@ struct TemplatePickerView: View {
                 if workoutViewModel.templates.isEmpty {
                     Text("No templates saved yet. Copy a workout from the feed to create one!")
                         .foregroundColor(.secondary)
-                        .padding()
+                        .padding(12)
                 } else {
                     ForEach(workoutViewModel.templates, id: \.id) { template in
                         Button(action: {
@@ -896,7 +1089,7 @@ struct TemplatePickerView: View {
                         }) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(template.name)
-                                    .font(.headline)
+                                    .font(.system(size: 15, weight: .semibold))
                                     .foregroundColor(.primary)
                                 
                                 Text("\(template.workout.exercises.count) exercises")

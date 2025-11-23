@@ -7,24 +7,24 @@
 
 import SwiftUI
 import FirebaseCore
+import HealthKit
 
 @main
 struct AscendrApp: App {
     @StateObject private var authViewModel = AuthenticationViewModel()
     
+    @StateObject private var appSettings = AppSettings.shared
+    
     init() {
         FirebaseApp.configure()
-        // Initialize step counter when app launches
-        Task { @MainActor in
-            StepCounterViewModel.shared.initialize()
-        }
     }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authViewModel)
-                .preferredColorScheme(.light)
+                .environmentObject(appSettings)
+                .preferredColorScheme(appSettings.isDarkMode ? .dark : .light)
         }
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @State private var isLaunching = true
     
     var body: some View {
@@ -16,12 +17,12 @@ struct ContentView: View {
             if isLaunching {
                 // Launch screen
                 ZStack {
-                    Color.white
+                    appSettings.primaryBackground
                         .ignoresSafeArea()
                     VStack(spacing: 20) {
                         Text("Ascendr")
-                            .font(.system(size: 48, weight: .black, design: .rounded))
-                            .foregroundColor(.black)
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(appSettings.primaryText)
                     }
                 }
                 .onAppear {

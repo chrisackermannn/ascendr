@@ -13,6 +13,7 @@ import Combine
 class ProfileViewModel: ObservableObject {
     @Published var user: User?
     @Published var workouts: [Workout] = []
+    @Published var sharedWorkouts: [Workout] = []
     @Published var progressPics: [Post] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -30,6 +31,9 @@ class ProfileViewModel: ObservableObject {
             
             // Fetch workout history
             workouts = try await databaseService.fetchUserWorkoutHistory(userId: userId)
+            
+            // Fetch shared workouts
+            sharedWorkouts = try await databaseService.fetchSharedWorkouts(userId: userId)
             
             // Progress pics can be fetched from posts if needed
             // For now, we'll keep it empty or fetch from a posts collection if you add one

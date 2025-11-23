@@ -148,14 +148,28 @@ class FriendsViewModel: ObservableObject {
         }
         
         // Also listen for session notifications (when someone accepts your invite)
+        // Notifications persist for 5 minutes to allow inviter to rejoin
         let notificationsRef = Database.database().reference().child("liveWorkoutNotifications").child(userId)
         notificationsRef.observe(.childAdded) { [weak self] snapshot, _ in
             guard let sessionData = snapshot.value as? [String: Any],
-                  let sessionId = sessionData["sessionId"] as? String else { return }
+                  let sessionId = sessionData["sessionId"] as? String,
+                  let timestamp = sessionData["timestamp"] as? TimeInterval else { return }
             
-            Task { @MainActor in
-                self?.pendingSessionId = sessionId
-                // Remove notification after reading
+            // Check if notification is still valid (within 5 minutes)
+            let now = Date().timeIntervalSince1970
+            let notificationAge = now - timestamp
+            
+            if notificationAge <= 300 { // 5 minutes
+                Task { @MainActor in
+                    self?.pendingSessionId = sessionId
+                }
+                
+                // Auto-remove after 5 minutes total
+                DispatchQueue.main.asyncAfter(deadline: .now() + (300 - notificationAge)) {
+                    snapshot.ref.removeValue()
+                }
+            } else {
+                // Notification expired, remove it
                 snapshot.ref.removeValue()
             }
         }

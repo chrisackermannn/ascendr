@@ -11,6 +11,7 @@ import FirebaseDatabase
 struct FeedView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @StateObject private var friendsViewModel = FriendsViewModel()
     @StateObject private var liveWorkoutViewModel = LiveWorkoutViewModel()
     @State private var showingFriendsSearch = false
@@ -19,14 +20,14 @@ struct FeedView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(spacing: 20) {
+                LazyVStack(spacing: 14) {
                     if feedViewModel.isLoading {
                         ProgressView("Loading posts...")
-                            .padding()
+                            .padding(12)
                     } else if let errorMessage = feedViewModel.errorMessage {
                         VStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.largeTitle)
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(.secondary)
                             Text("Error loading feed")
                                 .font(.headline)
@@ -42,7 +43,7 @@ struct FeedView: View {
                             .buttonStyle(.bordered)
                             .tint(.black)
                         }
-                        .padding()
+                        .padding(12)
                     } else if feedViewModel.posts.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "tray")
@@ -54,7 +55,7 @@ struct FeedView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        .padding()
+                        .padding(12)
                     } else {
                         ForEach(feedViewModel.posts) { post in
                             PostCardView(post: post)
@@ -63,18 +64,17 @@ struct FeedView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(12)
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    StepCounterView()
-                }
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
                         .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(.black)
+                        .foregroundStyle(
+                            appSettings.buttonGradient
+                        )
                         .allowsHitTesting(false)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -150,6 +150,7 @@ struct FeedView: View {
                 LiveWorkoutView()
                     .environmentObject(liveWorkoutViewModel)
                     .environmentObject(authViewModel)
+                    .environmentObject(AppSettings.shared)
             }
         }
     }
@@ -197,6 +198,7 @@ struct PostCardView: View {
     let post: Post
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @State private var showingCopySuccess = false
     @State private var showingTemplateNameInput = false
     @State private var templateName = ""
@@ -209,7 +211,7 @@ struct PostCardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             // User info (clickable) - Enhanced
             Button(action: {
                 showingUserProfile = true
@@ -228,21 +230,21 @@ struct PostCardView: View {
                                     .foregroundColor(.secondary)
                             }
                         }
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .clipShape(Circle())
                         .overlay(
                             Circle()
-                                .stroke(Color.black.opacity(0.2), lineWidth: 1.5)
+                                .stroke(appSettings.borderColor, lineWidth: 1.5)
                         )
                         
                         // Online indicator
                         if let status = userStatus, status.status {
                             Circle()
                                 .fill(Color.primary)
-                                .frame(width: 14, height: 14)
+                                .frame(width: 12, height: 12)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color(.systemBackground), lineWidth: 2.5)
+                                        .stroke(appSettings.cardBackground, lineWidth: 2.5)
                                 )
                         }
                     }
@@ -295,7 +297,7 @@ struct PostCardView: View {
                         .fill(Color.gray.opacity(0.2))
                         .frame(height: 300)
                 }
-                .cornerRadius(12)
+                .cornerRadius(10)
             }
             
             // Workout Summary
@@ -339,10 +341,23 @@ struct PostCardView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(appSettings.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 10, x: 0, y: 4)
+        )
         .alert("Template Saved!", isPresented: $showingCopySuccess) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -430,7 +445,7 @@ struct WorkoutSummaryView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
+        .padding(12)
         .background(Color(.systemGray6))
         .cornerRadius(8)
     }

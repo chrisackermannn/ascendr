@@ -194,6 +194,181 @@ class RealtimeDatabaseService {
         }
     }
     
+    /// Save shared workout to both users' shared workouts folder
+    func saveSharedWorkout(userId1: String, userName1: String, userId2: String, userName2: String, workout: Workout) async throws {
+        // Create a unique key for the shared workout (combine both user IDs)
+        let sharedWorkoutKey = [userId1, userId2].sorted().joined(separator: "_")
+        
+        // Save to user1's shared workouts
+        let user1SharedRef = database.child("users").child(userId1).child("sharedWorkouts").child(sharedWorkoutKey)
+        
+        // Save to user2's shared workouts
+        let user2SharedRef = database.child("users").child(userId2).child("sharedWorkouts").child(sharedWorkoutKey)
+        
+        // Encode workout
+        var workoutDict: [String: Any] = [
+            "id": workout.id,
+            "userId1": userId1,
+            "userName1": userName1,
+            "userId2": userId2,
+            "userName2": userName2,
+            "dateTimestamp": workout.date.timeIntervalSince1970,
+            "duration": workout.duration
+        ]
+        
+        // Encode exercises
+        var exercisesArray: [[String: Any]] = []
+        for exercise in workout.exercises {
+            var exerciseDict: [String: Any] = [
+                "id": exercise.id,
+                "name": exercise.name
+            ]
+            
+            if let equipment = exercise.equipment {
+                exerciseDict["equipment"] = equipment.rawValue
+            }
+            if let category = exercise.category {
+                exerciseDict["category"] = category.rawValue
+            }
+            if let addedByUserId = exercise.addedByUserId {
+                exerciseDict["addedByUserId"] = addedByUserId
+            }
+            
+            var setsArray: [[String: Any]] = []
+            for set in exercise.sets {
+                var setDict: [String: Any] = [
+                    "id": set.id,
+                    "reps": set.reps,
+                    "weight": set.weight,
+                    "restTime": set.restTime ?? 0
+                ]
+                if let addedByUserId = set.addedByUserId {
+                    setDict["addedByUserId"] = addedByUserId
+                }
+                setsArray.append(setDict)
+            }
+            exerciseDict["sets"] = setsArray
+            exercisesArray.append(exerciseDict)
+        }
+        workoutDict["exercises"] = exercisesArray
+        
+        // Save to BOTH users - ensure both saves succeed
+        print("💾 Saving shared workout to user1 (\(userName1))...")
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            user1SharedRef.setValue(workoutDict) { error, _ in
+                if let error = error {
+                    print("❌ Failed to save shared workout to user1: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                } else {
+                    print("✅ Shared workout saved to user1")
+                    continuation.resume()
+                }
+            }
+        }
+        
+        print("💾 Saving shared workout to user2 (\(userName2))...")
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            user2SharedRef.setValue(workoutDict) { error, _ in
+                if let error = error {
+                    print("❌ Failed to save shared workout to user2: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                } else {
+                    print("✅ Shared workout saved to user2")
+                    continuation.resume()
+                }
+            }
+        }
+        
+        print("✅ Shared workout saved successfully to BOTH users")
+    }
+    
+    /// Fetch user's shared workouts
+    func fetchSharedWorkouts(userId: String) async throws -> [Workout] {
+        let sharedWorkoutsRef = database.child("users").child(userId).child("sharedWorkouts")
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Workout], Error>) in
+            sharedWorkoutsRef.observeSingleEvent(of: .value) { snapshot in
+                guard let value = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                var workouts: [Workout] = []
+                for (_, workoutData) in value {
+                    // Decode shared workout format
+                    guard let id = workoutData["id"] as? String,
+                          let userId1 = workoutData["userId1"] as? String,
+                          let userName1 = workoutData["userName1"] as? String,
+                          let userId2 = workoutData["userId2"] as? String,
+                          let userName2 = workoutData["userName2"] as? String,
+                          let dateTimestamp = workoutData["dateTimestamp"] as? TimeInterval else {
+                        continue
+                    }
+                    
+                    let date = Date(timeIntervalSince1970: dateTimestamp)
+                    let duration = workoutData["duration"] as? TimeInterval ?? 0
+                    
+                    // Determine partner info
+                    let partnerId = userId == userId1 ? userId2 : userId1
+                    let partnerName = userId == userId1 ? userName2 : userName1
+                    
+                    // Decode exercises
+                    var exercises: [Exercise] = []
+                    if let exercisesArray = workoutData["exercises"] as? [[String: Any]] {
+                        for exerciseDict in exercisesArray {
+                            guard let exerciseId = exerciseDict["id"] as? String,
+                                  let name = exerciseDict["name"] as? String else { continue }
+                            
+                            var equipment: Equipment? = nil
+                            if let equipmentString = exerciseDict["equipment"] as? String {
+                                equipment = Equipment(rawValue: equipmentString)
+                            }
+                            
+                            var category: ExerciseCategory? = nil
+                            if let categoryString = exerciseDict["category"] as? String {
+                                category = ExerciseCategory(rawValue: categoryString)
+                            }
+                            
+                            let addedByUserId = exerciseDict["addedByUserId"] as? String
+                            
+                            var sets: [Set] = []
+                            if let setsArray = exerciseDict["sets"] as? [[String: Any]] {
+                                for setDict in setsArray {
+                                    guard let setId = setDict["id"] as? String,
+                                          let reps = setDict["reps"] as? Int,
+                                          let weight = setDict["weight"] as? Double else { continue }
+                                    
+                                    let restTime = setDict["restTime"] as? TimeInterval
+                                    let setAddedBy = setDict["addedByUserId"] as? String
+                                    sets.append(Set(id: setId, reps: reps, weight: weight, restTime: restTime, addedByUserId: setAddedBy))
+                                }
+                            }
+                            
+                            exercises.append(Exercise(id: exerciseId, name: name, sets: sets, equipment: equipment, category: category, addedByUserId: addedByUserId))
+                        }
+                    }
+                    
+                    let workout = Workout(
+                        id: id,
+                        userId: userId,
+                        userName: userId == userId1 ? userName1 : userName2,
+                        exercises: exercises,
+                        date: date,
+                        duration: duration,
+                        partnerId: partnerId,
+                        partnerName: partnerName
+                    )
+                    
+                    workouts.append(workout)
+                }
+                
+                // Sort by date descending
+                workouts.sort { $0.date > $1.date }
+                continuation.resume(returning: workouts)
+            }
+        }
+    }
+    
     // MARK: - Helper Methods
     
     private func decodeUser(from dict: [String: Any], userId: String) throws -> User {
@@ -1088,13 +1263,17 @@ class RealtimeDatabaseService {
     func sendLiveWorkoutInvite(from userId: String, fromUserName: String, to friendId: String) async throws -> String {
         let inviteId = UUID().uuidString
         let inviteRef = database.child("liveWorkoutInvites").child(friendId).child(inviteId)
+        let now = Date().timeIntervalSince1970
+        let expirationTime = now + 60 // 60 seconds from now
+        
         let inviteData: [String: Any] = [
             "inviteId": inviteId,
             "fromUserId": userId,
             "fromUserName": fromUserName,
             "toUserId": friendId,
             "status": "pending",
-            "timestamp": Date().timeIntervalSince1970
+            "timestamp": now,
+            "expirationTimestamp": expirationTime
         ]
         
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -1105,6 +1284,11 @@ class RealtimeDatabaseService {
                     continuation.resume()
                 }
             }
+        }
+        
+        // Auto-delete after 60 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            inviteRef.removeValue()
         }
         
         return inviteId
@@ -1225,14 +1409,159 @@ class RealtimeDatabaseService {
                 return
             }
             
-            completion(LiveWorkoutInvite(
-                inviteId: inviteId,
-                fromUserId: fromUserId,
-                fromUserName: fromUserName,
-                toUserId: toUserId,
-                status: status,
-                timestamp: Date(timeIntervalSince1970: timestamp)
-            ))
+            // Check if invite is still valid (within 60 seconds)
+            let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 60)
+            let now = Date().timeIntervalSince1970
+            
+            if now <= expirationTimestamp {
+                completion(LiveWorkoutInvite(
+                    inviteId: inviteId,
+                    fromUserId: fromUserId,
+                    fromUserName: fromUserName,
+                    toUserId: toUserId,
+                    status: status,
+                    timestamp: Date(timeIntervalSince1970: timestamp)
+                ))
+            } else {
+                // Invite expired, remove it
+                snapshot.ref.removeValue()
+                completion(nil)
+            }
+        }
+    }
+    
+    /// Fetch pending live workout invites (for viewing in workout page)
+    func fetchPendingLiveWorkoutInvites(userId: String) async throws -> [LiveWorkoutInvite] {
+        let invitesRef = database.child("liveWorkoutInvites").child(userId)
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[LiveWorkoutInvite], Error>) in
+            invitesRef.observeSingleEvent(of: .value) { snapshot, error in
+                if let error = error {
+                    let dbError: Error
+                    if let nsError = error as? NSError {
+                        dbError = nsError
+                    } else {
+                        dbError = NSError(domain: "RealtimeDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Database error: \(error)"])
+                    }
+                    continuation.resume(throwing: dbError)
+                    return
+                }
+                
+                guard snapshot.exists(), let value = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                var invites: [LiveWorkoutInvite] = []
+                let now = Date().timeIntervalSince1970
+                
+                for (_, inviteData) in value {
+                    guard let inviteId = inviteData["inviteId"] as? String,
+                          let fromUserId = inviteData["fromUserId"] as? String,
+                          let fromUserName = inviteData["fromUserName"] as? String,
+                          let toUserId = inviteData["toUserId"] as? String,
+                          let status = inviteData["status"] as? String,
+                          let timestamp = inviteData["timestamp"] as? TimeInterval else {
+                        continue
+                    }
+                    
+                    // Check if invite is still valid (within 60 seconds)
+                    let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 60)
+                    
+                    if now <= expirationTimestamp && status == "pending" {
+                        invites.append(LiveWorkoutInvite(
+                            inviteId: inviteId,
+                            fromUserId: fromUserId,
+                            fromUserName: fromUserName,
+                            toUserId: toUserId,
+                            status: status,
+                            timestamp: Date(timeIntervalSince1970: timestamp)
+                        ))
+                    }
+                }
+                
+                // Sort by timestamp descending (newest first)
+                invites.sort { $0.timestamp > $1.timestamp }
+                continuation.resume(returning: invites)
+            }
+        }
+    }
+    
+    /// Fetch pending sessions (for inviter to rejoin)
+    func fetchPendingSessions(userId: String) async throws -> [PendingSession] {
+        let notificationsRef = database.child("liveWorkoutNotifications").child(userId)
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[PendingSession], Error>) in
+            notificationsRef.observeSingleEvent(of: .value) { snapshot, error in
+                if let error = error {
+                    let dbError: Error
+                    if let nsError = error as? NSError {
+                        dbError = nsError
+                    } else {
+                        dbError = NSError(domain: "RealtimeDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Database error: \(error)"])
+                    }
+                    continuation.resume(throwing: dbError)
+                    return
+                }
+                
+                guard snapshot.exists(), let value = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                let now = Date().timeIntervalSince1970
+                let sessionIds = value.compactMap { (sessionId, sessionData) -> String? in
+                    guard let timestamp = sessionData["timestamp"] as? TimeInterval else { return nil }
+                    let notificationAge = now - timestamp
+                    // Check if notification is still valid (within 5 minutes) and session is active
+                    return notificationAge <= 300 ? sessionId : nil
+                }
+                
+                guard !sessionIds.isEmpty else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                // Fetch all session details
+                var sessions: [PendingSession] = []
+                let group = DispatchGroup()
+                
+                for sessionId in sessionIds {
+                    group.enter()
+                    let sessionRef = self.database.child("liveWorkouts").child(sessionId)
+                    sessionRef.observeSingleEvent(of: .value) { sessionSnapshot, _ in
+                        defer { group.leave() }
+                        
+                        guard let sessionValue = sessionSnapshot.value as? [String: Any],
+                              let userId1 = sessionValue["userId1"] as? String,
+                              let userName1 = sessionValue["userName1"] as? String,
+                              let userId2 = sessionValue["userId2"] as? String,
+                              let userName2 = sessionValue["userName2"] as? String,
+                              let status = sessionValue["status"] as? String,
+                              status == "active" else {
+                            return
+                        }
+                        
+                        // Determine partner name
+                        let partnerName = userId == userId1 ? userName2 : userName1
+                        let timestamp = value[sessionId]?["timestamp"] as? TimeInterval ?? now
+                        
+                        sessions.append(PendingSession(
+                            id: sessionId,
+                            sessionId: sessionId,
+                            userId: userId,
+                            partnerName: partnerName,
+                            timestamp: Date(timeIntervalSince1970: timestamp)
+                        ))
+                    }
+                }
+                
+                group.notify(queue: .main) {
+                    // Sort by timestamp descending
+                    sessions.sort { $0.timestamp > $1.timestamp }
+                    continuation.resume(returning: sessions)
+                }
+            }
         }
     }
     

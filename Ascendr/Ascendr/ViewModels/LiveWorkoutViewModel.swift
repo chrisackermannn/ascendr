@@ -24,6 +24,7 @@ class LiveWorkoutViewModel: ObservableObject {
     
     private let databaseService = RealtimeDatabaseService()
     private var sessionHandle: DatabaseHandle?
+    var currentUserName: String? // Will be set from view
     
     func startLiveWorkout(sessionId: String, currentUserId: String) {
         self.currentUserId = currentUserId
@@ -133,11 +134,10 @@ class LiveWorkoutViewModel: ObservableObject {
         }
     }
     
-    func endWorkout() async {
+    func endWorkout(currentUserName: String) async {
         guard let session = session,
               !session.sessionId.isEmpty,
-              let currentUserId = currentUserId,
-              let currentUserName = authViewModel.currentUser?.username else {
+              let currentUserId = currentUserId else {
             print("❌ Cannot end workout: Invalid or empty sessionId")
             print("   session: \(session != nil ? "exists" : "nil")")
             print("   sessionId: \(session?.sessionId ?? "nil")")
@@ -163,7 +163,7 @@ class LiveWorkoutViewModel: ObservableObject {
             // Calculate duration
             let duration = workoutStartTime.map { Date().timeIntervalSince($0) } ?? 0
             
-            // Create shared workout for both users
+            // Create shared workout for both users (contains all exercises from both users)
             let sharedWorkout = Workout(
                 id: sessionId,
                 userId: session.userId1,
@@ -175,7 +175,8 @@ class LiveWorkoutViewModel: ObservableObject {
                 partnerName: session.userName2
             )
             
-            // Save shared workout to both users' shared workouts folder
+            // Save shared workout to BOTH users' shared workouts folder
+            print("💾 Saving shared workout for both users...")
             try await databaseService.saveSharedWorkout(
                 userId1: session.userId1,
                 userName1: session.userName1,
@@ -183,6 +184,7 @@ class LiveWorkoutViewModel: ObservableObject {
                 userName2: session.userName2,
                 workout: sharedWorkout
             )
+            print("✅ Shared workout saved for both users")
             
             // Create personal workouts for each user (only their exercises)
             let user1Exercises = exercises.filter { $0.addedByUserId == session.userId1 }
@@ -210,14 +212,19 @@ class LiveWorkoutViewModel: ObservableObject {
                 partnerName: session.userName1
             )
             
-            // Save personal workouts to each user's history
+            // Save personal workouts to EACH user's history
+            print("💾 Saving personal workout for user1 (\(session.userName1))...")
             try await databaseService.saveWorkoutToHistory(userId: session.userId1, workout: user1Workout)
+            print("✅ Personal workout saved for user1")
+            
+            print("💾 Saving personal workout for user2 (\(session.userName2))...")
             try await databaseService.saveWorkoutToHistory(userId: session.userId2, workout: user2Workout)
+            print("✅ Personal workout saved for user2")
             
             // End the live workout session
             try await databaseService.endLiveWorkoutSession(sessionId: sessionId)
             
-            print("✅ Workout ended and saved successfully")
+            print("✅ Workout ended and saved successfully for BOTH users (shared + personal)")
             cleanup()
         } catch {
             print("❌ Error ending workout: \(error.localizedDescription)")

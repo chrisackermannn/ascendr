@@ -10,6 +10,7 @@ import SwiftUI
 struct LiveWorkoutView: View {
     @EnvironmentObject var liveWorkoutViewModel: LiveWorkoutViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @Environment(\.dismiss) var dismiss
     @State private var showingExercisePicker = false
     @State private var selectedTab: WorkoutTab = .you
@@ -45,7 +46,7 @@ struct LiveWorkoutView: View {
     
     // Exercises for partner
     private var partnerExercises: [Exercise] {
-        guard let currentUserId = currentUserId,
+        guard currentUserId != nil,
               let user1Id = user1Id,
               let user2Id = user2Id else { return [] }
         let partnerId = isCurrentUser1 ? user2Id : user1Id
@@ -125,7 +126,7 @@ struct LiveWorkoutView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 12)
                     
                     // Combined weight pushed counter
                     HStack {
@@ -151,7 +152,7 @@ struct LiveWorkoutView: View {
                                 .monospacedDigit()
                         }
                     }
-                    .padding()
+                    .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color(.systemGray6))
@@ -160,7 +161,7 @@ struct LiveWorkoutView: View {
                                     .stroke(Color.black.opacity(0.1), lineWidth: 1)
                             )
                     )
-                    .padding(.horizontal)
+                    .padding(.horizontal, 12)
                 }
                 .padding(.vertical, 12)
                 .background(Color(.systemBackground))
@@ -179,13 +180,13 @@ struct LiveWorkoutView: View {
                         action: { selectedTab = .partner }
                     )
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Color(.systemBackground))
                 
                 // Compact workout stats with timer
                 CompactWorkoutStatsView(startTime: liveWorkoutViewModel.workoutStartTime)
-                    .padding(.horizontal)
+                    .padding(.horizontal, 12)
                     .padding(.top, 4)
                 
                 // Exercises list
@@ -230,7 +231,7 @@ struct LiveWorkoutView: View {
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding()
+                                .padding(12)
                                 .background(Color(.systemGray6))
                                 .foregroundColor(.primary)
                                 .cornerRadius(12)
@@ -239,7 +240,7 @@ struct LiveWorkoutView: View {
                                         .stroke(Color.black.opacity(0.2), lineWidth: 1)
                                 )
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, 12)
                         }
                     }
                     .padding(.vertical)
@@ -248,7 +249,7 @@ struct LiveWorkoutView: View {
                 // Finish workout button
                 Button(action: {
                     Task {
-                        await liveWorkoutViewModel.endWorkout()
+                        await liveWorkoutViewModel.endWorkout(currentUserName: authViewModel.currentUser?.username ?? "")
                         dismiss()
                     }
                 }) {
@@ -260,26 +261,33 @@ struct LiveWorkoutView: View {
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.black)
-                    .cornerRadius(14)
-                    .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    .padding(12)
+                    .background(
+                        LinearGradient(
+                            colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(10)
+                    .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
                 }
-                .padding()
+                .padding(12)
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    StepCounterView()
-                }
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
                         .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(.black)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .allowsHitTesting(false)
-                        .frame(minWidth: 80, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: false)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -287,7 +295,7 @@ struct LiveWorkoutView: View {
                     }) {
                         Image(systemName: "plus.circle.fill")
                             .foregroundColor(.primary)
-                            .font(.title3)
+                            .font(.system(size: 16, weight: .semibold))
                     }
                 }
             }
@@ -337,6 +345,7 @@ struct TabButton: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
+    @EnvironmentObject var appSettings: AppSettings
     
     var body: some View {
         Button(action: action) {
@@ -350,10 +359,10 @@ struct TabButton: View {
                     Group {
                         if isSelected {
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.systemGray6))
+                                .fill(appSettings.secondaryBackground)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                        .stroke(appSettings.borderColor, lineWidth: 1)
                                 )
                         } else {
                             Color.clear
@@ -368,11 +377,13 @@ struct LiveExerciseCardView: View {
     let exercise: Exercise
     let currentUserId: String
     let onAddSet: (Set) -> Void
+    @EnvironmentObject var appSettings: AppSettings
     @State private var reps = ""
     @State private var weight = ""
     @State private var timeMinutes = ""
     @State private var timeSeconds = ""
     @State private var distance = ""
+    @State private var showingInstructions = false
     
     private var isBodyweightOrCardio: Bool {
         guard let equipment = exercise.equipment else { return false }
@@ -412,6 +423,21 @@ struct LiveExerciseCardView: View {
                 }
                 
                 Spacer()
+                
+                // Info button - on far side of name box
+                if let exerciseItem = ExerciseLibrary.shared.exercises.first(where: { $0.name == exercise.name }),
+                   exerciseItem.instructions != nil {
+                    Button(action: {
+                        showingInstructions = true
+                    }) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(appSettings.accentColor)
+                    }
+                    .sheet(isPresented: $showingInstructions) {
+                        ExerciseInstructionsView(exercise: exerciseItem)
+                    }
+                }
                 
                 if exercise.sets.isEmpty {
                     Label("No sets", systemImage: "exclamationmark.circle")
@@ -594,19 +620,31 @@ struct LiveExerciseCardView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(canAddSet ? Color.black : Color.gray)
+                    .background(
+                        Group {
+                            if canAddSet {
+                                LinearGradient(
+                                    colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            } else {
+                                appSettings.secondaryBackground
+                            }
+                        }
+                    )
                     .cornerRadius(8)
                 }
                 .disabled(!canAddSet)
             }
         }
-        .padding()
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+                .fill(appSettings.cardBackground)
+                .shadow(color: Color.black.opacity(appSettings.isDarkMode ? 0.08 : 0.05), radius: 8, x: 0, y: 4)
         )
-        .padding(.horizontal)
+        .padding(.horizontal, 12)
     }
     
     private func addSet() {
