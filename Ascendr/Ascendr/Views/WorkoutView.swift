@@ -26,10 +26,8 @@ struct WorkoutView: View {
                     VStack(spacing: 24) {
                         Spacer()
                         
-                        // Logo and welcome
+                        // Welcome
                         VStack(spacing: 16) {
-                            AscendrLogo(size: 40)
-                            
                             Text("Ready to train?")
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
@@ -228,12 +226,13 @@ struct WorkoutView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
+                    StepCounterView()
+                }
+                ToolbarItem(placement: .principal) {
                     Text("Ascendr")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundColor(.black)
                         .allowsHitTesting(false)
-                        .frame(minWidth: 80, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
             .sheet(isPresented: $showingFriendsSearch) {

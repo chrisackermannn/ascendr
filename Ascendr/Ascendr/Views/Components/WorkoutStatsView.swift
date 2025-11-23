@@ -201,6 +201,89 @@ struct StatCard: View {
     }
 }
 
+// Compact version for live workouts
+struct CompactWorkoutStatsView: View {
+    let startTime: Date?
+    @State private var elapsedTime: TimeInterval = 0
+    @State private var timer: Timer?
+    @State private var timerStartTime: Date?
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Timer - Compact
+            HStack(spacing: 8) {
+                Image(systemName: "clock.fill")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(formatTime(elapsedTime))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.systemGray6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                    )
+            )
+        }
+        .onAppear {
+            if startTime != nil {
+                startTimer()
+            }
+        }
+        .onDisappear {
+            stopTimer()
+        }
+        .onChange(of: startTime) { oldValue, newValue in
+            stopTimer()
+            if newValue != nil {
+                startTimer()
+            }
+        }
+    }
+    
+    private func startTimer() {
+        guard let startTime = startTime else { return }
+        
+        timerStartTime = startTime
+        elapsedTime = Date().timeIntervalSince(startTime)
+        stopTimer()
+        
+        let capturedStartTime = startTime
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task {
+                await MainActor.run {
+                    elapsedTime = Date().timeIntervalSince(capturedStartTime)
+                }
+            }
+        }
+        RunLoop.main.add(timer!, forMode: .common)
+    }
+    
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = Int(time) / 60 % 60
+        let seconds = Int(time) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+}
+
 #Preview {
     WorkoutStatsView(startTime: Date().addingTimeInterval(-3600))
         .padding()

@@ -69,12 +69,13 @@ struct FeedView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
+                    StepCounterView()
+                }
+                ToolbarItem(placement: .principal) {
                     Text("Ascendr")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundColor(.black)
                         .allowsHitTesting(false)
-                        .frame(minWidth: 80, alignment: .leading)
-                        .fixedSize(horizontal: true, vertical: false)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {

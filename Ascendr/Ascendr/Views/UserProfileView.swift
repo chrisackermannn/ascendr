@@ -154,13 +154,11 @@ struct UserProfileView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .principal) {
                 Text("Ascendr")
                     .font(.system(size: 20, weight: .black, design: .rounded))
                     .foregroundColor(.black)
                     .allowsHitTesting(false)
-                    .frame(minWidth: 80, alignment: .leading)
-                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .onAppear {

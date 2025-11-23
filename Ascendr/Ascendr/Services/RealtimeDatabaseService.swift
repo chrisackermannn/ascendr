@@ -1382,7 +1382,20 @@ class RealtimeDatabaseService {
         let addedByUserId = dict["addedByUserId"] as? String
         
         var sets: [Set] = []
-        if let setsArray = dict["sets"] as? [[String: Any]] {
+        // Firebase stores sets as a dictionary (object), not an array
+        if let setsDict = dict["sets"] as? [String: [String: Any]] {
+            // Sets stored as dictionary: { setId: { id, reps, weight, ... } }
+            for (_, setDict) in setsDict {
+                guard let setId = setDict["id"] as? String,
+                      let reps = setDict["reps"] as? Int,
+                      let weight = setDict["weight"] as? Double else { continue }
+                
+                let restTime = setDict["restTime"] as? TimeInterval
+                let setAddedBy = setDict["addedByUserId"] as? String
+                sets.append(Set(id: setId, reps: reps, weight: weight, restTime: restTime, addedByUserId: setAddedBy))
+            }
+        } else if let setsArray = dict["sets"] as? [[String: Any]] {
+            // Fallback: Sets stored as array (old format)
             for setDict in setsArray {
                 guard let setId = setDict["id"] as? String,
                       let reps = setDict["reps"] as? Int,

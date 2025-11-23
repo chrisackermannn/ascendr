@@ -2,7 +2,7 @@
 //  LiveWorkoutView.swift
 //  Ascendr
 //
-//  Live workout view with split screen - matches single person workout functionality
+//  Enhanced live workout view with tab-based interface matching solo workout style
 //
 
 import SwiftUI
@@ -12,6 +12,12 @@ struct LiveWorkoutView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @Environment(\.dismiss) var dismiss
     @State private var showingExercisePicker = false
+    @State private var selectedTab: WorkoutTab = .you
+    
+    enum WorkoutTab {
+        case you
+        case partner
+    }
     
     private var currentUserId: String? {
         liveWorkoutViewModel.currentUserId
@@ -25,275 +31,263 @@ struct LiveWorkoutView: View {
         liveWorkoutViewModel.session?.userId2
     }
     
-    // Determine if current user is user1
     private var isCurrentUser1: Bool {
         guard let currentUserId = currentUserId,
               let user1Id = user1Id else { return false }
         return currentUserId == user1Id
     }
     
-    // Exercises added by user1 (left side)
-    private var user1Exercises: [Exercise] {
-        guard let user1Id = user1Id else { return [] }
-        return liveWorkoutViewModel.exercises.filter { $0.addedByUserId == user1Id }
-    }
-    
-    // Exercises added by user2 (right side)
-    private var user2Exercises: [Exercise] {
-        guard let user2Id = user2Id else { return [] }
-        return liveWorkoutViewModel.exercises.filter { $0.addedByUserId == user2Id }
-    }
-    
-    // Current user's exercises (their side)
+    // Exercises for current user
     private var currentUserExercises: [Exercise] {
-        isCurrentUser1 ? user1Exercises : user2Exercises
+        guard let currentUserId = currentUserId else { return [] }
+        return liveWorkoutViewModel.exercises.filter { $0.addedByUserId == currentUserId }
     }
     
-    // Partner's exercises (other side)
+    // Exercises for partner
     private var partnerExercises: [Exercise] {
-        isCurrentUser1 ? user2Exercises : user1Exercises
+        guard let currentUserId = currentUserId,
+              let user1Id = user1Id,
+              let user2Id = user2Id else { return [] }
+        let partnerId = isCurrentUser1 ? user2Id : user1Id
+        return liveWorkoutViewModel.exercises.filter { $0.addedByUserId == partnerId }
+    }
+    
+    // Exercises for currently selected tab
+    private var displayedExercises: [Exercise] {
+        selectedTab == .you ? currentUserExercises : partnerExercises
+    }
+    
+    // Combined weight pushed (sum of weight × reps from all exercises for both users)
+    private var combinedWeightPushed: Double {
+        liveWorkoutViewModel.exercises.reduce(0) { total, exercise in
+            let exerciseTotal = exercise.sets.reduce(0) { setTotal, set in
+                setTotal + (set.weight * Double(set.reps))
+            }
+            return total + exerciseTotal
+        }
+    }
+    
+    // Current tab's weight pushed
+    private var currentTabWeightPushed: Double {
+        let exercises = selectedTab == .you ? currentUserExercises : partnerExercises
+        return exercises.reduce(0) { total, exercise in
+            let exerciseTotal = exercise.sets.reduce(0) { setTotal, set in
+                setTotal + (set.weight * Double(set.reps))
+            }
+            return total + exerciseTotal
+        }
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header with partner info
-                HStack(spacing: 16) {
-                    // Current user info
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("You")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(authViewModel.currentUser?.username ?? "You")
-                            .font(.headline)
-                            .foregroundColor(isCurrentUser1 ? .blue : .green)
+                // Enhanced header with partner info and live indicator
+                VStack(spacing: 12) {
+                    HStack {
+                        // Current user
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("You")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(authViewModel.currentUser?.username ?? "You")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Spacer()
+                        
+                        // Live indicator
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            Text("LIVE")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.green.opacity(0.1))
+                        )
+                        
+                        Spacer()
+                        
+                        // Partner
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Partner")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(liveWorkoutViewModel.partnerName ?? "Partner")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                        }
                     }
+                    .padding(.horizontal)
                     
-                    Spacer()
-                    
-                    // Connection indicator
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 8, height: 8)
-                        Text("Live")
-                            .font(.caption)
-                            .foregroundColor(.green)
+                    // Combined weight pushed counter
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Combined Weight Pushed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(Int(combinedWeightPushed)) lbs")
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
+                                .monospacedDigit()
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(selectedTab == .you ? "Your" : "Partner's") Weight")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(Int(currentTabWeightPushed)) lbs")
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                                .monospacedDigit()
+                        }
                     }
-                    
-                    Spacer()
-                    
-                    // Partner info
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Partner")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(liveWorkoutViewModel.partnerName ?? "Partner")
-                            .font(.headline)
-                            .foregroundColor(isCurrentUser1 ? .green : .blue)
-                    }
-                }
-                .padding()
-                .background(
-                    LinearGradient(
-                        colors: [Color.blue.opacity(0.1), Color.green.opacity(0.1)],
-                        startPoint: .leading,
-                        endPoint: .trailing
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
                     )
-                )
+                    .padding(.horizontal)
+                }
+                .padding(.vertical, 12)
+                .background(Color(.systemBackground))
                 
-                // Split screen workout view
+                // Tab selector
                 HStack(spacing: 0) {
-                    // Left side - Current user's exercises
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("Your Exercises")
-                                .font(.headline)
-                                .foregroundColor(isCurrentUser1 ? .blue : .green)
-                            Spacer()
-                            // Only show + button if current user can add to this side
-                            if isCurrentUser1 {
-                                Button(action: {
-                                    showingExercisePicker = true
-                                }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                        .font(.title3)
-                                }
+                    TabButton(
+                        title: "You",
+                        isSelected: selectedTab == .you,
+                        action: { selectedTab = .you }
+                    )
+                    
+                    TabButton(
+                        title: liveWorkoutViewModel.partnerName ?? "Partner",
+                        isSelected: selectedTab == .partner,
+                        action: { selectedTab = .partner }
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemBackground))
+                
+                // Compact workout stats with timer
+                CompactWorkoutStatsView(startTime: liveWorkoutViewModel.workoutStartTime)
+                    .padding(.horizontal)
+                    .padding(.top, 4)
+                
+                // Exercises list
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if displayedExercises.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: "figure.strengthtraining.traditional")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.secondary.opacity(0.3))
+                                
+                                Text("No exercises yet")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                
+                                Text("Tap + to add an exercise")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                             }
-                        }
-                        .padding()
-                        .background(isCurrentUser1 ? Color.blue.opacity(0.15) : Color.green.opacity(0.15))
-                        
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
-                                if currentUserExercises.isEmpty {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "figure.strengthtraining.traditional")
-                                            .font(.system(size: 40))
-                                            .foregroundColor((isCurrentUser1 ? Color.blue : Color.green).opacity(0.3))
-                                        Text("No exercises yet")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        Text("Tap + to add an exercise")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 40)
-                                } else {
-                                    ForEach(currentUserExercises) { exercise in
-                                        LiveExerciseCardView(
-                                            exercise: exercise,
-                                            currentUserId: currentUserId ?? "",
-                                            onAddSet: { set in
-                                                Task {
-                                                    await liveWorkoutViewModel.addSet(to: exercise.id, set: set)
-                                                }
-                                            }
-                                        )
-                                    }
-                                    
-                                    // Add exercise button
-                                    Button(action: {
-                                        showingExercisePicker = true
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "plus.circle.fill")
-                                            Text("Add Exercise")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 60)
+                        } else {
+                            ForEach(displayedExercises) { exercise in
+                                LiveExerciseCardView(
+                                    exercise: exercise,
+                                    currentUserId: currentUserId ?? "",
+                                    onAddSet: { set in
+                                        Task {
+                                            await liveWorkoutViewModel.addSet(to: exercise.id, set: set)
                                         }
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background((isCurrentUser1 ? Color.blue : Color.green).opacity(0.1))
-                                        .foregroundColor(isCurrentUser1 ? .blue : .green)
-                                        .cornerRadius(10)
                                     }
-                                    .padding(.horizontal)
-                                }
+                                )
                             }
-                            .padding()
+                            
+                            // Add exercise button
+                            Button(action: {
+                                showingExercisePicker = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add Exercise")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .foregroundColor(.primary)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                )
+                            }
+                            .padding(.horizontal)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.systemBackground))
-                    
-                    // Divider
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 2)
-                    
-                    // Right side - Partner's exercises
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("Partner's Exercises")
-                                .font(.headline)
-                                .foregroundColor(isCurrentUser1 ? .green : .blue)
-                            Spacer()
-                            // Only show + button if current user can add to this side
-                            if !isCurrentUser1 {
-                                Button(action: {
-                                    showingExercisePicker = true
-                                }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.title3)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(isCurrentUser1 ? Color.green.opacity(0.15) : Color.blue.opacity(0.15))
-                        
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
-                                if partnerExercises.isEmpty {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "figure.strengthtraining.traditional")
-                                            .font(.system(size: 40))
-                                            .foregroundColor((isCurrentUser1 ? Color.green : Color.blue).opacity(0.3))
-                                        Text("No exercises yet")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        Text("Waiting for partner...")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 40)
-                                } else {
-                                    ForEach(partnerExercises) { exercise in
-                                        LiveExerciseCardView(
-                                            exercise: exercise,
-                                            currentUserId: currentUserId ?? "",
-                                            onAddSet: { set in
-                                                Task {
-                                                    await liveWorkoutViewModel.addSet(to: exercise.id, set: set)
-                                                }
-                                            }
-                                        )
-                                    }
-                                    
-                                    // Add exercise button (only if current user is user2)
-                                    if !isCurrentUser1 {
-                                        Button(action: {
-                                            showingExercisePicker = true
-                                        }) {
-                                            HStack {
-                                                Image(systemName: "plus.circle.fill")
-                                                Text("Add Exercise")
-                                            }
-                                            .frame(maxWidth: .infinity)
-                                            .padding()
-                                            .background((isCurrentUser1 ? Color.green : Color.blue).opacity(0.1))
-                                            .foregroundColor(isCurrentUser1 ? .green : .blue)
-                                            .cornerRadius(10)
-                                        }
-                                        .padding(.horizontal)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6).opacity(0.5))
+                    .padding(.vertical)
                 }
                 
-                // End workout button
+                // Finish workout button
                 Button(action: {
                     Task {
                         await liveWorkoutViewModel.endWorkout()
                         dismiss()
                     }
                 }) {
-                    HStack {
+                    HStack(spacing: 12) {
                         Image(systemName: "stop.circle.fill")
-                        Text("End Workout")
+                        Text("Finish Workout")
                             .fontWeight(.semibold)
                     }
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(
-                        LinearGradient(
-                            colors: [Color.red, Color.red.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(12)
+                    .background(Color.black)
+                    .cornerRadius(14)
+                    .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
                 }
                 .padding()
             }
-            .navigationTitle("Live Workout")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        Task {
-                            await liveWorkoutViewModel.endWorkout()
-                            dismiss()
-                        }
+                    StepCounterView()
+                }
+                ToolbarItem(placement: .principal) {
+                    Text("Ascendr")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundColor(.black)
+                        .allowsHitTesting(false)
+                        .frame(minWidth: 80, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingExercisePicker = true
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.primary)
+                            .font(.title3)
                     }
                 }
             }
@@ -302,12 +296,31 @@ struct LiveWorkoutView: View {
             }
             .sheet(isPresented: $showingExercisePicker) {
                 ExercisePickerView { exerciseItem in
+                    // Determine which user ID to use based on selected tab
+                    let targetUserId: String?
+                    if selectedTab == .you {
+                        targetUserId = currentUserId
+                    } else {
+                        // Partner's tab - use partner's ID
+                        if let user1Id = user1Id, let user2Id = user2Id {
+                            targetUserId = isCurrentUser1 ? user2Id : user1Id
+                        } else {
+                            targetUserId = currentUserId
+                        }
+                    }
+                    
+                    guard let userId = targetUserId else {
+                        print("❌ Cannot add exercise: No user ID available")
+                        showingExercisePicker = false
+                        return
+                    }
+                    
                     let exercise = Exercise(
                         name: exerciseItem.name,
                         sets: [],
                         equipment: exerciseItem.equipment,
                         category: exerciseItem.category,
-                        addedByUserId: currentUserId // Set ownership to current user
+                        addedByUserId: userId
                     )
                     
                     Task {
@@ -316,6 +329,37 @@ struct LiveWorkoutView: View {
                     showingExercisePicker = false
                 }
             }
+        }
+    }
+}
+
+struct TabButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .fontWeight(isSelected ? .bold : .medium)
+                .foregroundColor(isSelected ? .primary : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    Group {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(.systemGray6))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                )
+                        } else {
+                            Color.clear
+                        }
+                    }
+                )
         }
     }
 }
@@ -341,15 +385,12 @@ struct LiveExerciseCardView: View {
     
     private var canAddSet: Bool {
         if isCardio {
-            // For cardio, need time or distance
             return (!timeMinutes.isEmpty && Int(timeMinutes) != nil) || 
                    (!timeSeconds.isEmpty && Int(timeSeconds) != nil) ||
                    (!distance.isEmpty && Double(distance) != nil)
         } else if isBodyweightOrCardio {
-            // For bodyweight, just need reps
             return !reps.isEmpty && Int(reps) != nil
         } else {
-            // For weighted exercises, need both reps and weight
             return !reps.isEmpty && Int(reps) != nil && !weight.isEmpty && Double(weight) != nil
         }
     }
@@ -375,11 +416,11 @@ struct LiveExerciseCardView: View {
                 if exercise.sets.isEmpty {
                     Label("No sets", systemImage: "exclamationmark.circle")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundColor(.secondary)
                 } else {
                     Label("\(exercise.sets.count) set\(exercise.sets.count == 1 ? "" : "s")", systemImage: "checkmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.green)
+                        .foregroundColor(.primary)
                 }
             }
             
@@ -400,6 +441,7 @@ struct LiveExerciseCardView: View {
                         HStack {
                             Text("Set \(index + 1)")
                                 .font(.caption)
+                                .fontWeight(.medium)
                                 .foregroundColor(.secondary)
                             
                             Spacer()
@@ -424,18 +466,36 @@ struct LiveExerciseCardView: View {
                                     .foregroundColor(.secondary)
                             }
                         }
-                        .padding(.vertical, 2)
-                        .padding(.horizontal, 8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(6)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color(.systemGray5).opacity(0.6))
+                        )
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.systemGray6).opacity(0.4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                )
             }
+            
+            Divider()
             
             // Completed sets
             if !exercise.sets.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Sets")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    
                     ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                         HStack {
                             Text("Set \(index + 1)")
@@ -463,67 +523,90 @@ struct LiveExerciseCardView: View {
                         .padding(.vertical, 4)
                     }
                 }
-                .padding(.vertical, 4)
             }
             
-            // Add set form
             Divider()
             
-            if isCardio {
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        TextField("Min", text: $timeMinutes)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                        Text(":")
-                        TextField("Sec", text: $timeSeconds)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                            .frame(width: 60)
+            // Add set form
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Add Set")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                
+                if isCardio {
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            TextField("Minutes", text: $timeMinutes)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.numberPad)
+                            
+                            Text(":")
+                                .foregroundColor(.secondary)
+                            
+                            TextField("Seconds", text: $timeSeconds)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.numberPad)
+                                .frame(width: 80)
+                            
+                            Text("OR")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            TextField("Distance (miles)", text: $distance)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.decimalPad)
+                        }
                     }
-                    
-                    Text("OR")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    TextField("Distance", text: $distance)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.decimalPad)
-                }
-            } else if isBodyweightOrCardio {
-                TextField("Reps", text: $reps)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.numberPad)
-            } else {
-                HStack {
+                } else if isBodyweightOrCardio {
                     TextField("Reps", text: $reps)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.numberPad)
-                    TextField("Weight (lbs)", text: $weight)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.decimalPad)
+                } else {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Reps")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("", text: $reps)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.numberPad)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Weight (lbs)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            TextField("", text: $weight)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.decimalPad)
+                        }
+                    }
                 }
-            }
-            
-            Button(action: addSet) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Add Set")
+                
+                Button(action: addSet) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add Set")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(canAddSet ? Color.black : Color.gray)
+                    .cornerRadius(8)
                 }
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(canAddSet ? Color.blue : Color.gray)
-                .cornerRadius(8)
+                .disabled(!canAddSet)
             }
-            .disabled(!canAddSet)
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+        )
+        .padding(.horizontal)
     }
     
     private func addSet() {
@@ -533,14 +616,18 @@ struct LiveExerciseCardView: View {
                 onAddSet(newSet)
                 timeMinutes = ""
                 timeSeconds = ""
+                distance = ""
             } else if !timeSeconds.isEmpty, let seconds = Int(timeSeconds) {
                 let newSet = Set(reps: seconds, weight: 0, addedByUserId: currentUserId)
                 onAddSet(newSet)
                 timeMinutes = ""
                 timeSeconds = ""
+                distance = ""
             } else if !distance.isEmpty, let dist = Double(distance) {
                 let newSet = Set(reps: 0, weight: dist, addedByUserId: currentUserId)
                 onAddSet(newSet)
+                timeMinutes = ""
+                timeSeconds = ""
                 distance = ""
             }
         } else if isBodyweightOrCardio {

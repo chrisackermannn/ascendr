@@ -25,11 +25,13 @@ class HealthKitService {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             healthStore.requestAuthorization(toShare: nil, read: typesToRead) { success, error in
                 if let error = error {
+                    print("HealthKit authorization error: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
-                } else if success {
-                    continuation.resume()
                 } else {
-                    continuation.resume(throwing: NSError(domain: "HealthKitService", code: -1, userInfo: [NSLocalizedDescriptionKey: "HealthKit authorization denied"]))
+                    // Success can be true even if user hasn't granted permission yet
+                    // The actual permission status is checked when querying
+                    print("HealthKit authorization request completed, success: \(success)")
+                    continuation.resume()
                 }
             }
         }
@@ -38,30 +40,59 @@ class HealthKitService {
     // Get step count for today
     func getTodayStepCount() async throws -> Int {
         guard HKHealthStore.isHealthDataAvailable() else {
+            print("HealthKit not available on this device")
             return 0
         }
         
         let stepCountType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         
-        // Check authorization
+        // Check authorization status
         let status = healthStore.authorizationStatus(for: stepCountType)
-        guard status == .sharingAuthorized else {
+        print("HealthKit step count authorization status: \(status.rawValue) (0=notDetermined, 1=sharingDenied, 2=sharingAuthorized)")
+        
+        // If explicitly denied, return 0
+        if status == .sharingDenied {
+            print("HealthKit step count access denied by user")
             return 0
         }
         
+        // For .notDetermined or .sharingAuthorized, try to query
+        // HealthKit will handle authorization if needed
         let calendar = Calendar.current
         let now = Date()
         let startOfDay = calendar.startOfDay(for: now)
-        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
+        
+        // Don't use .strictStartDate - use .none to get all samples that overlap with the time range
+        // This ensures we get steps from all sources (iPhone, Apple Watch, etc.)
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: [])
         
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
-            let query = HKStatisticsQuery(quantityType: stepCountType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, error in
+            let query = HKStatisticsQuery(
+                quantityType: stepCountType,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, result, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let result = result, let sum = result.sumQuantity() {
-                    let steps = Int(sum.doubleValue(for: HKUnit.count()))
-                    continuation.resume(returning: steps)
+                    let nsError = error as NSError
+                    // Don't fail on authorization errors - just return 0
+                    if nsError.domain == "com.apple.healthkit" && nsError.code == 4 {
+                        print("HealthKit authorization required - user needs to grant permission")
+                        continuation.resume(returning: 0)
+                    } else {
+                        print("HealthKit query error: \(error.localizedDescription), code: \(nsError.code)")
+                        continuation.resume(throwing: error)
+                    }
+                } else if let result = result {
+                    if let sum = result.sumQuantity() {
+                        let steps = Int(sum.doubleValue(for: HKUnit.count()))
+                        print("HealthKit steps retrieved successfully: \(steps)")
+                        continuation.resume(returning: steps)
+                    } else {
+                        print("HealthKit query completed but no step data available (may be 0 steps today)")
+                        continuation.resume(returning: 0)
+                    }
                 } else {
+                    print("HealthKit query returned nil result")
                     continuation.resume(returning: 0)
                 }
             }

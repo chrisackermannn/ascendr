@@ -14,12 +14,17 @@ struct AscendrApp: App {
     
     init() {
         FirebaseApp.configure()
+        // Initialize step counter when app launches
+        Task { @MainActor in
+            StepCounterViewModel.shared.initialize()
+        }
     }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authViewModel)
+                .preferredColorScheme(.light)
         }
     }
 }
