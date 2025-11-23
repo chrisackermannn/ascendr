@@ -11,6 +11,7 @@ struct ProfileView: View {
     @EnvironmentObject var profileViewModel: ProfileViewModel
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var healthKitManager: HealthKitManager
     @State private var selectedWorkout: Workout?
     @State private var showingSettings = false
     @State private var selectedTab: ProfileTab = .recent
@@ -42,7 +43,8 @@ struct ProfileView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
-                                    .frame(width: 90, height: 90)
+                                .id(authViewModel.currentUser?.profileImageURL ?? UUID().uuidString) // Force refresh on URL change
+                                .frame(width: 90, height: 90)
                                 .clipShape(Circle())
                                 
                                 // Border
@@ -54,15 +56,15 @@ struct ProfileView: View {
                                     .frame(width: 90, height: 90)
                             }
                             
-                            // Online indicator (always shown for own profile)
+                            // Online indicator (always shown for own profile) - should always be green for own profile
                             Circle()
-                                .fill(appSettings.accentColor)
+                                .fill(Color.green)
                                 .frame(width: 18, height: 18)
                                 .overlay(
                                     Circle()
                                         .stroke(appSettings.primaryBackground, lineWidth: 2.5)
                                 )
-                                .shadow(color: appSettings.accentColor.opacity(0.3), radius: 8, x: 0, y: 0)
+                                .shadow(color: Color.green.opacity(0.3), radius: 8, x: 0, y: 0)
                         }
                         
                         VStack(spacing: 8) {
@@ -246,7 +248,8 @@ struct ProfileView: View {
                 SettingsView()
                     .environmentObject(authViewModel)
                     .environmentObject(profileViewModel)
-                    .environmentObject(AppSettings.shared)
+                    .environmentObject(appSettings)
+                    .environmentObject(healthKitManager)
             }
             .sheet(item: $selectedWorkout) { workout in
                 WorkoutDetailView(workout: workout)
@@ -477,13 +480,12 @@ struct SharedWorkoutCard: View {
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) var dismiss
-    @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.delegate = context.coordinator
         picker.allowsEditing = true
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.sourceType = .photoLibrary // Always use photo library, not camera
         return picker
     }
     

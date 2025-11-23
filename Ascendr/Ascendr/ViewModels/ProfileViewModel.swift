@@ -49,16 +49,27 @@ class ProfileViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        print("📸 Starting profile image upload for user: \(userId)")
+        
         do {
+            // Upload to Firebase Storage
+            print("📤 Uploading image to Firebase Storage...")
             let imageURL = try await storageService.uploadProfileImage(image, userId: userId)
-            try await databaseService.updateUserProfile(userId: userId, updates: ["profileImageURL": imageURL])
+            print("✅ Image uploaded, URL: \(imageURL)")
             
-            // Update local user object
+            // Update Firebase Realtime Database
+            print("💾 Saving profile image URL to database...")
+            try await databaseService.updateUserProfile(userId: userId, updates: ["profileImageURL": imageURL])
+            print("✅ Profile image URL saved to database")
+            
+            // Update local user object immediately
             user?.profileImageURL = imageURL
             
-            // Refresh user data to get updated profile
+            // Refresh user data to ensure consistency
             await fetchUserData(userId: userId)
+            print("✅ Profile image update complete")
         } catch {
+            print("❌ Error updating profile image: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
         

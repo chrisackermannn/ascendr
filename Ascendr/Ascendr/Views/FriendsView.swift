@@ -230,13 +230,14 @@ struct FriendRowView: View {
                                     .foregroundColor(.secondary)
                             )
                     }
+                    .id(user.profileImageURL ?? UUID().uuidString) // Force refresh when URL changes
                     .frame(width: 50, height: 50)
                     .clipShape(Circle())
                     
-                    // Online indicator
-                    if let status = status, status.status {
+                    // Online/Offline indicator - always show
+                    if let status = status {
                         Circle()
-                            .fill(Color.green)
+                            .fill(status.isOnline ? Color.green : Color.red)
                             .frame(width: 14, height: 14)
                             .overlay(
                                 Circle()
@@ -256,9 +257,9 @@ struct FriendRowView: View {
                         .foregroundColor(.primary)
                     
                     if let status = status {
-                        Text(status.status ? "Online" : "Offline")
+                        Text(status.isOnline ? "Online" : "Offline")
                             .font(.caption)
-                            .foregroundColor(status.status ? .green : .secondary)
+                            .foregroundColor(status.isOnline ? .green : .red)
                     } else {
                         Text("Unknown")
                             .font(.caption)

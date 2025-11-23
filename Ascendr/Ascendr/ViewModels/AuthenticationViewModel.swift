@@ -64,5 +64,17 @@ class AuthenticationViewModel: ObservableObject {
     func updateUsername(_ newUsername: String) async throws {
         try await authService.updateUsername(newUsername)
     }
+    
+    func refreshCurrentUser() async {
+        guard let userId = currentUser?.id else { return }
+        let databaseService = RealtimeDatabaseService()
+        do {
+            if let updatedUser = try await databaseService.fetchUser(userId: userId) {
+                currentUser = updatedUser
+            }
+        } catch {
+            print("Error refreshing current user: \(error.localizedDescription)")
+        }
+    }
 }
 

@@ -435,8 +435,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ascendr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "We need access to your health data to track steps and calories during workouts.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We need access to update your health data with workout information.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app requires access to your health data to show step counts.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app tracks fitness progress using your step count.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
@@ -474,8 +474,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ascendr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "We need access to your health data to track steps and calories during workouts.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We need access to update your health data with workout information.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app requires access to your health data to show step counts.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app tracks fitness progress using your step count.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";

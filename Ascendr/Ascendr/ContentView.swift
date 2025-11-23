@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var healthKitManager: HealthKitManager
     @State private var isLaunching = true
     
     var body: some View {
@@ -33,6 +34,11 @@ struct ContentView: View {
                 }
             } else if authViewModel.isAuthenticated {
                 MainTabView()
+                    .environmentObject(healthKitManager)
+                    .onAppear {
+                        // Request HealthKit authorization when user is authenticated
+                        healthKitManager.requestAuthorization()
+                    }
             } else {
                 AuthenticationView()
             }

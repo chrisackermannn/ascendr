@@ -75,10 +75,10 @@ struct UserProfileView: View {
                                     .frame(width: 120, height: 120)
                             )
                             
-                            // Online indicator
-                            if let status = userStatus, status.status {
+                            // Online/Offline indicator - always show
+                            if let status = userStatus {
                                 Circle()
-                                    .fill(Color.green)
+                                    .fill(status.isOnline ? Color.green : Color.red)
                                     .frame(width: 24, height: 24)
                                     .overlay(
                                         Circle()

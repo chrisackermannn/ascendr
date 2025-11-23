@@ -12,8 +12,8 @@ import HealthKit
 @main
 struct AscendrApp: App {
     @StateObject private var authViewModel = AuthenticationViewModel()
-    
     @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var healthKitManager = HealthKitManager.shared
     
     init() {
         FirebaseApp.configure()
@@ -24,6 +24,7 @@ struct AscendrApp: App {
             ContentView()
                 .environmentObject(authViewModel)
                 .environmentObject(appSettings)
+                .environmentObject(healthKitManager)
                 .preferredColorScheme(appSettings.isDarkMode ? .dark : .light)
         }
     }

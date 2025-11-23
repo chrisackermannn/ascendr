@@ -100,6 +100,10 @@ class AuthenticationService: ObservableObject {
     }
     
     func signOut() throws {
+        // Mark user as offline before signing out
+        if let userId = currentUser?.id {
+            databaseService.setUserOffline(userId: userId)
+        }
         try auth.signOut()
         // State will be updated by the listener
     }

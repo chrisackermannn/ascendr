@@ -8,14 +8,17 @@
 import Foundation
 import SwiftUI
 import Combine
+import FirebaseDatabase
 
 @MainActor
 class FeedViewModel: ObservableObject {
     @Published var posts: [Post] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var userProfileImages: [String: String] = [:] // userId -> profileImageURL
     
     private let databaseService = RealtimeDatabaseService()
+    private var userListeners: [String: DatabaseHandle] = [:]
     
     func fetchPosts() async {
         isLoading = true
@@ -24,6 +27,13 @@ class FeedViewModel: ObservableObject {
         do {
             let fetchedPosts = try await databaseService.fetchPosts()
             posts = fetchedPosts
+            
+            // Start listening to profile image updates for all users in posts
+            let userIds = Swift.Set(fetchedPosts.map { $0.userId })
+            for userId in userIds {
+                startListeningToUserProfile(userId: userId)
+            }
+            
             print("✅ Successfully fetched \(fetchedPosts.count) posts")
         } catch {
             let errorMsg = error.localizedDescription
@@ -33,6 +43,49 @@ class FeedViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    func startListeningToUserProfile(userId: String) {
+        // Remove existing listener if any
+        if let existingHandle = userListeners[userId] {
+            Database.database().reference().child("users").child(userId).removeObserver(withHandle: existingHandle)
+        }
+        
+        let userRef = Database.database().reference().child("users").child(userId)
+        let handle = userRef.observe(.value) { [weak self] snapshot in
+            Task { @MainActor in
+                guard let self = self,
+                      let userDict = snapshot.value as? [String: Any],
+                      let profileImageURL = userDict["profileImageURL"] as? String else {
+                    return
+                }
+                
+                // Update the profile image cache
+                self.userProfileImages[userId] = profileImageURL
+                
+                // Update all posts from this user
+                for i in 0..<self.posts.count {
+                    if self.posts[i].userId == userId {
+                        self.posts[i].userProfileImageURL = profileImageURL
+                    }
+                }
+                
+                print("🔄 Updated profile image for user \(userId)")
+            }
+        }
+        
+        userListeners[userId] = handle
+    }
+    
+    func stopListening() {
+        for (userId, handle) in userListeners {
+            Database.database().reference().child("users").child(userId).removeObserver(withHandle: handle)
+        }
+        userListeners.removeAll()
+    }
+    
+    func getProfileImageURL(for userId: String) -> String? {
+        return userProfileImages[userId]
     }
     
     func likePost(_ post: Post, userId: String) async {

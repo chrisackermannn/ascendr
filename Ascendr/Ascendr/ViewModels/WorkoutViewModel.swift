@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import UIKit
 
 @MainActor
 class WorkoutViewModel: ObservableObject {
@@ -23,6 +24,7 @@ class WorkoutViewModel: ObservableObject {
     
     private let databaseService = RealtimeDatabaseService()
     private let authService = AuthenticationService()
+    private let storageService = StorageService()
     
     func startWorkout(userId: String, userName: String, partnerId: String? = nil, partnerName: String? = nil) {
         isPartnerMode = partnerId != nil
@@ -77,7 +79,7 @@ class WorkoutViewModel: ObservableObject {
         return true
     }
     
-    func finishWorkout(shouldPostToFeed: Bool = false) async {
+    func finishWorkout(shouldPostToFeed: Bool = false, postContent: String? = nil, postImage: UIImage? = nil) async {
         guard var workout = currentWorkout else { return }
         
         // Validate workout before finishing
@@ -99,12 +101,21 @@ class WorkoutViewModel: ObservableObject {
             
             // Post to feed if requested
             if shouldPostToFeed {
+                var progressPicURL: String? = nil
+                
+                // Upload image if provided
+                if let image = postImage {
+                    let postId = UUID().uuidString
+                    progressPicURL = try await storageService.uploadProgressPic(image, userId: workout.userId, postId: postId)
+                }
+                
                 let post = Post(
                     userId: workout.userId,
                     userName: workout.userName,
                     userProfileImageURL: nil, // Can be updated later
-                    content: "Just finished an amazing workout! 💪",
+                    content: postContent,
                     workout: workout,
+                    progressPicURL: progressPicURL,
                     timestamp: Date()
                 )
                 try await databaseService.createPost(post)

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseDatabase
+import UIKit
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutViewModel: WorkoutViewModel
@@ -299,13 +300,16 @@ struct WorkoutView: View {
                 }
             }
             .sheet(isPresented: $showingPostToFeed) {
-                PostToFeedView { shouldPost in
-                    Task {
-                        await workoutViewModel.finishWorkout(shouldPostToFeed: shouldPost)
-                        await MainActor.run {
-                            showingPostToFeed = false
+                if let workout = workoutViewModel.currentWorkout {
+                    PostToFeedView(workout: workout) { content, image in
+                        Task {
+                            await workoutViewModel.finishWorkout(shouldPostToFeed: content != nil || image != nil, postContent: content, postImage: image)
+                            await MainActor.run {
+                                showingPostToFeed = false
+                            }
                         }
                     }
+                    .environmentObject(appSettings)
                 }
             }
             .sheet(isPresented: $showingTemplatePicker) {
@@ -978,93 +982,200 @@ struct ExerciseRowView: View {
 }
 
 struct PostToFeedView: View {
-    let onFinish: (Bool) -> Void
+    let workout: Workout
+    let onFinish: (String?, UIImage?) -> Void
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appSettings: AppSettings
     @State private var shouldPost = false
+    @State private var postContent = ""
+    @State private var selectedImage: UIImage?
+    @State private var showingImagePicker = false
+    @State private var isUploading = false
+    @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 32) {
-                Spacer()
+            ZStack {
+                appSettings.primaryBackground
+                    .ignoresSafeArea()
                 
-                // Success animation
-                ZStack {
-                    Circle()
-                        .fill(
-                            appSettings.buttonGradient
-                        )
-                        .frame(width: 120, height: 120)
-                        .shadow(color: appSettings.accentColor.opacity(0.2), radius: 20, x: 0, y: 10)
-                    
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(appSettings.isDarkMode ? .white : appSettings.primaryText)
-                }
-                
-                VStack(spacing: 12) {
-                    Text("Workout Complete!")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
-                    
-                    Text("Great job finishing your workout!")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                
-                // Share toggle
-                VStack(spacing: 12) {
-                    Toggle(isOn: $shouldPost) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "square.and.arrow.up.fill")
-                                .foregroundColor(.primary)
-                            Text("Share to Feed")
-                                .font(.system(size: 15, weight: .semibold))
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Success animation
+                        ZStack {
+                            Circle()
+                                .fill(appSettings.buttonGradient)
+                                .frame(width: 100, height: 100)
+                                .shadow(color: appSettings.accentColor.opacity(0.2), radius: 15, x: 0, y: 8)
+                            
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 45))
+                                .foregroundColor(appSettings.isDarkMode ? .white : appSettings.primaryText)
                         }
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: .black))
-                    
-                    if shouldPost {
-                        Text("Your workout will be visible to friends and followers")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                        .padding(.top, 20)
+                        
+                        VStack(spacing: 8) {
+                            Text("Workout Complete!")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(appSettings.primaryText)
+                            
+                            Text("Great job finishing your workout!")
+                                .font(.subheadline)
+                                .foregroundColor(appSettings.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        // Share toggle
+                        VStack(spacing: 12) {
+                            Toggle(isOn: $shouldPost) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "square.and.arrow.up.fill")
+                                        .foregroundColor(appSettings.primaryText)
+                                    Text("Share to Feed")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(appSettings.primaryText)
+                                }
+                            }
+                            .toggleStyle(SwitchToggleStyle(tint: appSettings.accentColor))
+                        }
+                        .padding(16)
+                        .background(appSettings.cardBackground)
+                        .cornerRadius(12)
+                        .padding(.horizontal, 16)
+                        
+                        // Post creation section (only shown if sharing)
+                        if shouldPost {
+                            VStack(spacing: 16) {
+                                // Text input
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("What's on your mind?")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(appSettings.primaryText)
+                                    
+                                    TextEditor(text: $postContent)
+                                        .font(.system(size: 15))
+                                        .foregroundColor(appSettings.primaryText)
+                                        .frame(minHeight: 100)
+                                        .padding(8)
+                                        .background(appSettings.secondaryBackground)
+                                        .cornerRadius(8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(appSettings.borderColor, lineWidth: 1)
+                                        )
+                                        .focused($isTextFieldFocused)
+                                    
+                                    Text("\(postContent.count)/500")
+                                        .font(.caption)
+                                        .foregroundColor(appSettings.secondaryText)
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                }
+                                .padding(16)
+                                .background(appSettings.cardBackground)
+                                .cornerRadius(12)
+                                
+                                // Image picker
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Add a photo")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(appSettings.primaryText)
+                                    
+                                    if let selectedImage = selectedImage {
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: selectedImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(height: 200)
+                                                .clipped()
+                                                .cornerRadius(12)
+                                            
+                                            Button(action: {
+                                                self.selectedImage = nil
+                                            }) {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.system(size: 24))
+                                                    .foregroundColor(.white)
+                                                    .background(Color.black.opacity(0.5))
+                                                    .clipShape(Circle())
+                                            }
+                                            .padding(8)
+                                        }
+                                    } else {
+                                        Button(action: {
+                                            showingImagePicker = true
+                                        }) {
+                                            VStack(spacing: 12) {
+                                                Image(systemName: "photo.badge.plus")
+                                                    .font(.system(size: 32))
+                                                    .foregroundColor(appSettings.accentColor)
+                                                Text("Tap to add photo")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(appSettings.secondaryText)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 150)
+                                            .background(appSettings.secondaryBackground)
+                                            .cornerRadius(12)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(appSettings.borderColor, lineWidth: 1)
+                                            )
+                                        }
+                                    }
+                                }
+                                .padding(16)
+                                .background(appSettings.cardBackground)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                        
+                        // Done button
+                        Button(action: {
+                            onFinish(shouldPost ? postContent.isEmpty ? nil : postContent : nil, shouldPost ? selectedImage : nil)
+                        }) {
+                            HStack(spacing: 12) {
+                                if isUploading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "checkmark.circle.fill")
+                                }
+                                Text(shouldPost ? "Share Workout" : "Done")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(14)
+                            .background(
+                                Group {
+                                    if shouldPost && (postContent.isEmpty && selectedImage == nil) {
+                                        appSettings.secondaryBackground
+                                    } else {
+                                        appSettings.buttonGradient
+                                    }
+                                }
+                            )
+                            .cornerRadius(12)
+                            .shadow(color: appSettings.accentColor.opacity(0.2), radius: 8, x: 0, y: 4)
+                        }
+                        .disabled(isUploading || (shouldPost && postContent.isEmpty && selectedImage == nil))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 20)
                     }
                 }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemGray6))
-                )
-                .padding(.horizontal, 12)
-                
-                Spacer()
-                
-                // Done button
-                Button(action: {
-                    onFinish(shouldPost)
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Done")
-                            .fontWeight(.semibold)
-                    }
-                    .font(.headline)
-                    .foregroundColor(appSettings.isDarkMode ? .white : .white)
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .background(
-                        appSettings.buttonGradient
-                    )
-                    .cornerRadius(10)
-                    .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
-                }
-                .padding(12)
             }
-            .padding(12)
             .navigationTitle("Finish Workout")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePicker(image: $selectedImage)
+            }
+            .onChange(of: postContent) { newValue in
+                if newValue.count > 500 {
+                    postContent = String(newValue.prefix(500))
+                }
+            }
         }
     }
 }

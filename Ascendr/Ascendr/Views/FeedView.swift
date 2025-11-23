@@ -161,6 +161,7 @@ struct FeedView: View {
                     friendsViewModel.stopListeningForInvites(userId: userId)
                 }
                 messagingViewModel.stopListeningForConversations()
+                feedViewModel.stopListening() // Stop listening to user profile updates
             }
             .alert("Live Workout Invite", isPresented: Binding(
                 get: { friendsViewModel.liveWorkoutInvite != nil },
@@ -265,12 +266,14 @@ struct PostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // User info (clickable) - Enhanced
-            Button(action: {
-                showingUserProfile = true
-            }) {
-                HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: {
+                    showingUserProfile = true
+                }) {
                     ZStack(alignment: .bottomTrailing) {
-                        AsyncImage(url: URL(string: post.userProfileImageURL ?? "")) { image in
+                        // Use live profile image from FeedViewModel if available, otherwise fall back to post's stored URL
+                        let profileImageURL = feedViewModel.getProfileImageURL(for: post.userId) ?? post.userProfileImageURL ?? ""
+                        AsyncImage(url: URL(string: profileImageURL)) { image in
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -282,6 +285,7 @@ struct PostCardView: View {
                                     .foregroundColor(.secondary)
                             }
                         }
+                        .id(profileImageURL) // Force refresh when URL changes
                         .frame(width: 36, height: 36)
                         .clipShape(Circle())
                         .overlay(
@@ -289,10 +293,10 @@ struct PostCardView: View {
                                 .stroke(appSettings.borderColor, lineWidth: 1.5)
                         )
                         
-                        // Online indicator
-                        if let status = userStatus, status.status {
+                        // Online/Offline indicator - always show
+                        if let status = userStatus {
                             Circle()
-                                .fill(Color.primary)
+                                .fill(status.isOnline ? Color.green : Color.red)
                                 .frame(width: 12, height: 12)
                                 .overlay(
                                     Circle()
@@ -300,7 +304,12 @@ struct PostCardView: View {
                                 )
                         }
                     }
-                    
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {
+                    showingUserProfile = true
+                }) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(post.userName)
                             .font(.headline)
@@ -310,15 +319,20 @@ struct PostCardView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    
-                    Spacer()
-                    
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                Button(action: {
+                    showingUserProfile = true
+                }) {
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .onAppear {
                 Task {
                     let databaseService = RealtimeDatabaseService()

@@ -10,6 +10,7 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var healthKitManager: HealthKitManager
     @StateObject private var feedViewModel = FeedViewModel()
     @StateObject private var workoutViewModel = WorkoutViewModel()
     @StateObject private var profileViewModel = ProfileViewModel()
@@ -17,9 +18,16 @@ struct MainTabView: View {
     
     var body: some View {
         TabView {
+            HomeSummaryView()
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+                .environmentObject(authViewModel)
+                .environmentObject(appSettings)
+            
             FeedView()
                 .tabItem {
-                    Label("Feed", systemImage: "house.fill")
+                    Label("Feed", systemImage: "square.grid.2x2")
                 }
                 .environmentObject(feedViewModel)
                 .environmentObject(authViewModel)
@@ -40,6 +48,7 @@ struct MainTabView: View {
                 .environmentObject(profileViewModel)
                 .environmentObject(authViewModel)
                 .environmentObject(appSettings)
+                .environmentObject(healthKitManager)
         }
         .tint(appSettings.accentColor)
         .onAppear {

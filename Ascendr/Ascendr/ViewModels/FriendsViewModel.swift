@@ -25,6 +25,8 @@ class FriendsViewModel: ObservableObject {
     private var statusHandles: [String: DatabaseHandle] = [:]
     private var inviteHandle: DatabaseHandle?
     
+    private var friendProfileListeners: [String: DatabaseHandle] = [:]
+    
     func fetchFriends(userId: String) async {
         isLoading = true
         errorMessage = nil
@@ -38,6 +40,8 @@ class FriendsViewModel: ObservableObject {
                     fetchedFriends.append(friend)
                     // Start listening to friend's status
                     listenToFriendStatus(friendId: friendId)
+                    // Start listening to friend's profile updates
+                    listenToFriendProfile(friendId: friendId)
                 }
             }
             
@@ -47,6 +51,33 @@ class FriendsViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    func listenToFriendProfile(friendId: String) {
+        // Remove existing listener if any
+        if let existingHandle = friendProfileListeners[friendId] {
+            Database.database().reference().child("users").child(friendId).removeObserver(withHandle: existingHandle)
+        }
+        
+        let userRef = Database.database().reference().child("users").child(friendId)
+        let handle = userRef.observe(.value) { [weak self] snapshot in
+            Task { @MainActor in
+                guard let self = self,
+                      let userDict = snapshot.value as? [String: Any] else {
+                    return
+                }
+                
+                // Update friend's profile image if it changed
+                if let profileImageURL = userDict["profileImageURL"] as? String {
+                    if let index = self.friends.firstIndex(where: { $0.id == friendId }) {
+                        self.friends[index].profileImageURL = profileImageURL
+                        print("🔄 Updated profile image for friend \(friendId)")
+                    }
+                }
+            }
+        }
+        
+        friendProfileListeners[friendId] = handle
     }
     
     func fetchFriendRequests(userId: String) async {
@@ -106,6 +137,11 @@ class FriendsViewModel: ObservableObject {
             if let handle = statusHandles[friendId] {
                 Database.database().reference().child("userStatus").child(friendId).removeObserver(withHandle: handle)
                 statusHandles.removeValue(forKey: friendId)
+            }
+            // Stop listening to removed friend's profile
+            if let handle = friendProfileListeners[friendId] {
+                Database.database().reference().child("users").child(friendId).removeObserver(withHandle: handle)
+                friendProfileListeners.removeValue(forKey: friendId)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -183,6 +219,11 @@ class FriendsViewModel: ObservableObject {
     }
     
     func cleanup() {
+        // Stop all profile listeners
+        for (friendId, handle) in friendProfileListeners {
+            Database.database().reference().child("users").child(friendId).removeObserver(withHandle: handle)
+        }
+        friendProfileListeners.removeAll()
         // Remove all status listeners
         for (friendId, handle) in statusHandles {
             Database.database().reference().child("userStatus").child(friendId).removeObserver(withHandle: handle)

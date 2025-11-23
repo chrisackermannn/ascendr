@@ -1188,20 +1188,49 @@ class RealtimeDatabaseService {
         }
     }
     
-    /// Set user online status
+    private var onlineStatusTimers: [String: Timer] = [:]
+    
+    /// Set user online status and keep it updated
     func setUserOnline(userId: String) {
         let userStatusRef = database.child("userStatus").child(userId)
-        let statusData: [String: Any] = [
-            "status": "online",
-            "lastSeen": Date().timeIntervalSince1970
-        ]
-        userStatusRef.setValue(statusData)
+        
+        // Update status immediately
+        let updateStatus = {
+            let statusData: [String: Any] = [
+                "status": "online",
+                "lastSeen": Date().timeIntervalSince1970
+            ]
+            userStatusRef.setValue(statusData)
+        }
+        
+        updateStatus()
+        
+        // Cancel existing timer if any
+        onlineStatusTimers[userId]?.invalidate()
+        
+        // Update lastSeen every 30 seconds to keep user online
+        onlineStatusTimers[userId] = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
+            updateStatus()
+        }
         
         // Set up disconnect handler to mark as offline
         userStatusRef.onDisconnectSetValue([
             "status": "offline",
             "lastSeen": Date().timeIntervalSince1970
         ])
+    }
+    
+    /// Stop updating user online status (when they log out)
+    func setUserOffline(userId: String) {
+        onlineStatusTimers[userId]?.invalidate()
+        onlineStatusTimers.removeValue(forKey: userId)
+        
+        let userStatusRef = database.child("userStatus").child(userId)
+        let statusData: [String: Any] = [
+            "status": "offline",
+            "lastSeen": Date().timeIntervalSince1970
+        ]
+        userStatusRef.setValue(statusData)
     }
     
     /// Get user online status

@@ -7,9 +7,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take progress photos.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>We need access to your health data to track steps and calories during workouts.</string>
+	<string>This app requires access to your health data to show step counts.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>We need access to update your health data with workout information.</string>
+	<string>This app tracks fitness progress using your step count.</string>
 </dict>
 </plist>
 
