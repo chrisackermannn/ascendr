@@ -14,7 +14,9 @@ struct FeedView: View {
     @EnvironmentObject var appSettings: AppSettings
     @StateObject private var friendsViewModel = FriendsViewModel()
     @StateObject private var liveWorkoutViewModel = LiveWorkoutViewModel()
+    @StateObject private var messagingViewModel = MessagingViewModel()
     @State private var showingFriendsSearch = false
+    @State private var showingMessages = false
     @State private var showingLiveWorkout = false
     
     var body: some View {
@@ -77,13 +79,52 @@ struct FeedView: View {
                         )
                         .allowsHitTesting(false)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
                         showingFriendsSearch = true
                     }) {
                         Image(systemName: "person.2.fill")
-                            .foregroundColor(.primary)
+                            .foregroundColor(appSettings.primaryText)
                             .font(.system(size: 18, weight: .medium))
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingMessages = true
+                    }) {
+                        ZStack {
+                            Image(systemName: "message.fill")
+                                .foregroundColor(appSettings.primaryText)
+                                .font(.system(size: 18, weight: .medium))
+                                .frame(width: 24, height: 24)
+                            
+                            if messagingViewModel.totalUnreadCount > 0 {
+                                Text("\(messagingViewModel.totalUnreadCount > 99 ? "99+" : "\(messagingViewModel.totalUnreadCount)")")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(minWidth: 18, minHeight: 18)
+                                    .padding(.horizontal, messagingViewModel.totalUnreadCount > 9 ? 5 : 4)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        ZStack {
+                                            Color.red
+                                            LinearGradient(
+                                                colors: [Color.red, Color(red: 0.9, green: 0, blue: 0)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        }
+                                    )
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                    )
+                                    .shadow(color: Color.red.opacity(0.5), radius: 4, x: 0, y: 2)
+                                    .position(x: 20, y: 4)
+                            }
+                        }
+                        .frame(width: 24, height: 24)
                     }
                 }
             }
@@ -100,6 +141,12 @@ struct FeedView: View {
                 // Start listening for live workout invites
                 if let userId = authViewModel.currentUser?.id {
                     friendsViewModel.startListeningForInvites(userId: userId)
+                    
+                    // Load conversations and start listening for unread messages
+                    Task {
+                        await messagingViewModel.loadConversations(userId: userId)
+                    }
+                    messagingViewModel.startListeningForConversations(userId: userId)
                 }
             }
             .onChange(of: friendsViewModel.pendingSessionId) { oldValue, newValue in
@@ -113,6 +160,7 @@ struct FeedView: View {
                 if let userId = authViewModel.currentUser?.id {
                     friendsViewModel.stopListeningForInvites(userId: userId)
                 }
+                messagingViewModel.stopListeningForConversations()
             }
             .alert("Live Workout Invite", isPresented: Binding(
                 get: { friendsViewModel.liveWorkoutInvite != nil },
@@ -144,7 +192,11 @@ struct FeedView: View {
             .sheet(isPresented: $showingFriendsSearch) {
                 FriendsView()
                     .environmentObject(friendsViewModel)
+            }
+            .sheet(isPresented: $showingMessages) {
+                MessagesView()
                     .environmentObject(authViewModel)
+                    .environmentObject(messagingViewModel)
             }
             .fullScreenCover(isPresented: $showingLiveWorkout) {
                 LiveWorkoutView()

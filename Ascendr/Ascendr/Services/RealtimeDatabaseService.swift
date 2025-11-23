@@ -1738,5 +1738,274 @@ class RealtimeDatabaseService {
         
         return Exercise(id: id, name: name, sets: sets, equipment: equipment, category: category, addedByUserId: addedByUserId)
     }
+    
+    // MARK: - Messaging
+    
+    /// Send a message
+    func sendMessage(_ message: Message) async throws {
+        let messageRef = database.child("messages").child(message.id)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            messageRef.setValue(message.toDictionary()) { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        // Also store in conversation threads for both users
+        let conversationId1 = "\(message.senderId)_\(message.receiverId)"
+        let conversationId2 = "\(message.receiverId)_\(message.senderId)"
+        
+        let conversationRef1 = database.child("conversations").child(conversationId1).child("lastMessage")
+        let conversationRef2 = database.child("conversations").child(conversationId2).child("lastMessage")
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            conversationRef1.setValue(message.toDictionary()) { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            conversationRef2.setValue(message.toDictionary()) { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+    
+    /// Fetch messages between two users
+    func fetchMessages(userId1: String, userId2: String) async throws -> [Message] {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Message], Error>) in
+            database.child("messages").observeSingleEvent(of: .value) { snapshot in
+                guard let dict = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                var allMessages: [Message] = []
+                
+                for (_, messageDict) in dict {
+                    if let senderId = messageDict["senderId"] as? String,
+                       let receiverId = messageDict["receiverId"] as? String,
+                       ((senderId == userId1 && receiverId == userId2) || (senderId == userId2 && receiverId == userId1)),
+                       let message = Message(from: messageDict) {
+                        allMessages.append(message)
+                    }
+                }
+                
+                // Sort by timestamp
+                allMessages.sort { $0.timestamp < $1.timestamp }
+                continuation.resume(returning: allMessages)
+            }
+        }
+    }
+    
+    /// Listen for new messages in real-time
+    func listenForMessages(userId1: String, userId2: String, completion: @escaping ([Message]) -> Void) -> DatabaseHandle {
+        // Listen to all messages and filter - this fires whenever ANY message changes
+        let handle = database.child("messages").observe(.value) { snapshot in
+            // Handle both dictionary format and null
+            guard snapshot.exists() else {
+                completion([])
+                return
+            }
+            
+            guard let dict = snapshot.value as? [String: [String: Any]] else {
+                completion([])
+                return
+            }
+            
+            var allMessages: [Message] = []
+            for (messageId, messageDict) in dict {
+                // Ensure we have all required fields
+                guard let senderId = messageDict["senderId"] as? String,
+                      let receiverId = messageDict["receiverId"] as? String else {
+                    continue
+                }
+                
+                // Check if this message is between our two users
+                let isRelevant = (senderId == userId1 && receiverId == userId2) || 
+                                (senderId == userId2 && receiverId == userId1)
+                
+                if isRelevant {
+                    // Try to create message from dictionary
+                    var messageDictWithId = messageDict
+                    // Ensure the message has an ID
+                    if messageDictWithId["id"] == nil {
+                        messageDictWithId["id"] = messageId
+                    }
+                    
+                    if let message = Message(from: messageDictWithId) {
+                        allMessages.append(message)
+                    }
+                }
+            }
+            
+            // Sort by timestamp
+            allMessages.sort { $0.timestamp < $1.timestamp }
+            completion(allMessages)
+        }
+        
+        return handle
+    }
+    
+    /// Fetch all conversations for a user
+    func fetchConversations(userId: String) async throws -> [Conversation] {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Conversation], Error>) in
+            database.child("conversations").observeSingleEvent(of: .value) { snapshot, _ in
+                guard let dict = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                var conversations: [Conversation] = []
+                let group = DispatchGroup()
+                
+                for (conversationId, conversationData) in dict {
+                    // Check if this conversation involves the user
+                    if conversationId.contains(userId) {
+                        group.enter()
+                        
+                        // Extract other user ID - handle both "userId_otherId" and "otherId_userId" formats
+                        let parts = conversationId.split(separator: "_")
+                        let otherUserId: String
+                        if parts.count == 2 {
+                            // Get the part that is NOT the current userId
+                            if String(parts[0]) == userId {
+                                otherUserId = String(parts[1])
+                            } else if String(parts[1]) == userId {
+                                otherUserId = String(parts[0])
+                            } else {
+                                // Neither part matches, skip this conversation
+                                group.leave()
+                                continue
+                            }
+                        } else {
+                            // Invalid format, skip
+                            group.leave()
+                            continue
+                        }
+                        
+                        // Skip if otherUserId is empty or same as userId
+                        guard !otherUserId.isEmpty && otherUserId != userId else {
+                            group.leave()
+                            continue
+                        }
+                        
+                        // Fetch other user data and count unread messages
+                        Task {
+                            do {
+                                // First, count unread messages for this conversation using async/await
+                                var unreadCount = 0
+                                let messagesData = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DataSnapshot, Error>) in
+                                    self.database.child("messages").observeSingleEvent(of: .value) { snapshot in
+                                        continuation.resume(returning: snapshot)
+                                    }
+                                }
+                                
+                                if let messagesDict = messagesData.value as? [String: [String: Any]] {
+                                    for (_, msgDict) in messagesDict {
+                                        if let msgSenderId = msgDict["senderId"] as? String,
+                                           let msgReceiverId = msgDict["receiverId"] as? String,
+                                           msgSenderId == String(otherUserId) && msgReceiverId == userId,
+                                           let isRead = msgDict["isRead"] as? Bool,
+                                           !isRead {
+                                            unreadCount += 1
+                                        }
+                                    }
+                                }
+                                
+                                // Fetch other user data
+                                if let otherUser = try await self.fetchUser(userId: String(otherUserId)) {
+                                    var lastMessage: Message?
+                                    
+                                    if let lastMessageDict = conversationData["lastMessage"] as? [String: Any],
+                                       let message = Message(from: lastMessageDict) {
+                                        lastMessage = message
+                                    }
+                                    
+                                    let conversation = Conversation(
+                                        id: String(otherUserId),
+                                        otherUser: otherUser,
+                                        lastMessage: lastMessage,
+                                        unreadCount: unreadCount
+                                    )
+                                    
+                                    await MainActor.run {
+                                        conversations.append(conversation)
+                                        group.leave()
+                                    }
+                                } else {
+                                    group.leave()
+                                }
+                            } catch {
+                                group.leave()
+                            }
+                        }
+                    }
+                }
+                
+                group.notify(queue: .main) {
+                    // Remove duplicate conversations (same otherUserId)
+                    var uniqueConversations: [Conversation] = []
+                    var seenUserIds: Swift.Set<String> = []
+                    
+                    for conversation in conversations {
+                        if !seenUserIds.contains(conversation.id) {
+                            seenUserIds.insert(conversation.id)
+                            uniqueConversations.append(conversation)
+                        }
+                    }
+                    
+                    // Sort by last message timestamp
+                    uniqueConversations.sort { ($0.lastMessage?.timestamp ?? Date.distantPast) > ($1.lastMessage?.timestamp ?? Date.distantPast) }
+                    continuation.resume(returning: uniqueConversations)
+                }
+            }
+        }
+    }
+    
+    /// Mark messages as read
+    func markMessagesAsRead(userId: String, otherUserId: String) async throws {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            database.child("messages").observeSingleEvent(of: .value) { snapshot in
+                guard let dict = snapshot.value as? [String: [String: Any]] else {
+                    continuation.resume()
+                    return
+                }
+                
+                let group = DispatchGroup()
+                var hasUpdates = false
+                
+                for (messageId, messageDict) in dict {
+                    if let senderId = messageDict["senderId"] as? String,
+                       let receiverId = messageDict["receiverId"] as? String,
+                       senderId == otherUserId && receiverId == userId,
+                       let isRead = messageDict["isRead"] as? Bool,
+                       !isRead {
+                        group.enter()
+                        hasUpdates = true
+                        
+                        self.database.child("messages").child(messageId).updateChildValues(["isRead": true]) { error, _ in
+                            group.leave()
+                        }
+                    }
+                }
+                
+                group.notify(queue: .main) {
+                    continuation.resume()
+                }
+            }
+        }
+    }
 }
 
