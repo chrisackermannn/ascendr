@@ -25,7 +25,12 @@ struct WorkoutView: View {
     
     var body: some View {
         NavigationView {
-            VStack {
+            ZStack {
+                // Home screen gradient background
+                appSettings.homeGradient
+                    .ignoresSafeArea()
+                
+                VStack {
                 if workoutViewModel.currentWorkout == nil {
                     // Start workout screen
                     VStack(spacing: 16) {
@@ -141,135 +146,177 @@ struct WorkoutView: View {
                         Spacer()
                     }
                 } else {
-                    // Active workout screen
+                    // Active workout screen - Compact redesign
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            // Enhanced workout stats with timer and HealthKit
+                        VStack(spacing: 10) {
+                            // Music Player with Liquid Glass
+                            MusicPlayerView()
+                                .padding(.horizontal, 12)
+                            
+                            // Compact stats bar
                             WorkoutStatsView(startTime: workoutViewModel.workoutStartTime)
                                 .id(workoutViewModel.workoutStartTime?.timeIntervalSince1970 ?? 0)
                             
-                            // Partner info if applicable
+                            // Partner info - Compact
                             if workoutViewModel.isPartnerMode {
-                                HStack {
+                                HStack(spacing: 6) {
                                     Image(systemName: "person.2.fill")
-                                        .foregroundColor(.primary)
-                                    Text("Partner: \(workoutViewModel.partnerName ?? "")")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                    Spacer()
+                                        .font(.system(size: 11))
+                                        .foregroundColor(appSettings.accentColor)
+                                    Text(workoutViewModel.partnerName ?? "")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(appSettings.primaryText)
                                 }
-                                .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.systemGray6))
+                                    Capsule()
+                                        .fill(appSettings.cardBackground)
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(
+                                                    LinearGradient(
+                                                        colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                                        startPoint: .leading,
+                                                        endPoint: .trailing
+                                                    ),
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                        .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 8, x: 0, y: 3)
                                 )
                                 .padding(.horizontal, 12)
                             }
                             
-                            // Exercises section
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Exercises")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 12)
+                            // Exercises section - Compact
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("Exercises")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(appSettings.primaryText)
+                                    Spacer()
+                                    Text("\(workoutViewModel.exercises.count)")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 12)
                                 
                                 ForEach(workoutViewModel.exercises) { exercise in
                                     ExerciseCardView(exercise: exercise, workoutViewModel: workoutViewModel)
                                 }
                                 
-                                // Add exercise button
+                                // Add exercise button - Compact
                                 Button(action: {
                                     showingExercisePicker = true
                                 }) {
-                                    HStack {
+                                    HStack(spacing: 6) {
                                         Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 14))
                                         Text("Add Exercise")
-                                            .fontWeight(.semibold)
+                                            .font(.system(size: 13, weight: .semibold))
                                     }
+                                    .foregroundColor(appSettings.primaryText)
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
+                                    .padding(.vertical, 12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(appSettings.secondaryBackground)
+                                            .fill(appSettings.cardBackground)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(appSettings.accentColor.opacity(0.3), lineWidth: 1.5)
+                                                    .stroke(
+                                                        LinearGradient(
+                                                            colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                                            startPoint: .topLeading,
+                                                            endPoint: .bottomTrailing
+                                                        ),
+                                                        lineWidth: 1
+                                                    )
                                             )
+                                            .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 10, x: 0, y: 4)
                                     )
-                                    .foregroundColor(appSettings.primaryText)
                                 }
                                 .padding(.horizontal, 12)
                             }
+                            .padding(.top, 4)
                             
-                            // Error message
+                            // Error message - Compact
                             if let errorMessage = workoutViewModel.errorMessage {
-                                HStack {
+                                HStack(spacing: 6) {
                                     Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 11))
                                         .foregroundColor(.red)
                                     Text(errorMessage)
-                                        .font(.caption)
+                                        .font(.system(size: 11, weight: .medium))
                                         .foregroundColor(.red)
                                 }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(8)
-                                .padding(.horizontal, 12)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.red.opacity(0.1))
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                                            )
+                                    )
+                                    .padding(.horizontal, 12)
                             }
                             
-                            // Finish workout button
-                            VStack(spacing: 12) {
+                            // Finish workout button - Compact
+                            VStack(spacing: 8) {
                                 if !workoutViewModel.canFinishWorkout && !workoutViewModel.exercises.isEmpty {
-                                    HStack {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.orange)
                                         Text("Add at least one set to each exercise")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.orange)
                                     }
+                                    .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
                                     .frame(maxWidth: .infinity)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(10)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.orange.opacity(0.1))
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                            )
+                                    )
                                     .padding(.horizontal, 12)
                                 }
                                 
                                 Button(action: {
                                     showingPostToFeed = true
                                 }) {
-                                    HStack(spacing: 12) {
+                                    HStack(spacing: 8) {
                                         if workoutViewModel.isLoading {
                                             ProgressView()
                                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                                .scaleEffect(0.8)
                                         } else {
                                             Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 14))
                                             Text("Finish Workout")
-                                                .fontWeight(.semibold)
+                                                .font(.system(size: 14, weight: .bold))
                                         }
                                     }
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(workoutViewModel.canFinishWorkout ? .white : appSettings.primaryText)
+                                    .foregroundColor(workoutViewModel.canFinishWorkout ? .white : appSettings.primaryText.opacity(0.5))
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
+                                    .padding(.vertical, 12)
                                     .background(
                                         Group {
                                             if workoutViewModel.canFinishWorkout {
-                                                LinearGradient(
-                                                    colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
+                                                appSettings.buttonGradient
                                             } else {
                                                 appSettings.secondaryBackground
                                             }
                                         }
                                     )
-                                    .cornerRadius(10)
+                                    .cornerRadius(12)
+                                    .shadow(color: workoutViewModel.canFinishWorkout ? appSettings.accentColor.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
                                     .shadow(color: workoutViewModel.canFinishWorkout ? appSettings.accentColor.opacity(0.2) : Color.clear, radius: 12, x: 0, y: 6)
                                 }
                                 .disabled(workoutViewModel.isLoading || !workoutViewModel.canFinishWorkout)
@@ -277,6 +324,12 @@ struct WorkoutView: View {
                             .padding(12)
                         }
                     }
+                    .simultaneousGesture(
+                        TapGesture()
+                            .onEnded { _ in
+                                hideKeyboard()
+                            }
+                    )
                 }
             }
             .navigationTitle("")
@@ -284,8 +337,10 @@ struct WorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(appSettings.primaryText)
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(
+                            appSettings.buttonGradient
+                        )
                         .allowsHitTesting(false)
                 }
             }
@@ -324,23 +379,12 @@ struct WorkoutView: View {
                 .environmentObject(authViewModel)
             }
             .sheet(isPresented: $showingPendingRequests) {
-                PendingLiveWorkoutRequestsView(
-                    invites: $pendingInvites,
-                    onAccept: { invite in
-                        if let userId = authViewModel.currentUser?.id,
-                           let userName = authViewModel.currentUser?.username {
-                            Task {
-                                await acceptLiveWorkoutInvite(invite: invite, userId: userId, userName: userName)
-                            }
-                        }
-                        showingPendingRequests = false
-                    }
-                )
-                .environmentObject(friendsViewModel)
-                .environmentObject(authViewModel)
+                PendingLiveWorkoutRequestsView(invites: $pendingInvites)
+                    .environmentObject(authViewModel)
             }
             .onAppear {
                 loadPendingInvites()
+            }
             }
         }
     }
@@ -437,6 +481,10 @@ struct ExerciseCardView: View {
     @State private var timeSeconds = ""
     @State private var distance = ""
     @State private var showingInstructions = false
+    @State private var selectedSet: Set?
+    @State private var showingEditSet = false
+    @State private var editReps = ""
+    @State private var editWeight = ""
     
     private var isBodyweightOrCardio: Bool {
         guard let equipment = exercise.equipment else { return false }
@@ -449,268 +497,266 @@ struct ExerciseCardView: View {
     
     private var canAddSet: Bool {
         if isCardio {
-            // For cardio, need time or distance
             return (!timeMinutes.isEmpty && Int(timeMinutes) != nil) || 
                    (!timeSeconds.isEmpty && Int(timeSeconds) != nil) ||
                    (!distance.isEmpty && Double(distance) != nil)
         } else if isBodyweightOrCardio {
-            // For bodyweight, just need reps
             return !reps.isEmpty && Int(reps) != nil
         } else {
-            // For weighted exercises, need both reps and weight
             return !reps.isEmpty && Int(reps) != nil && !weight.isEmpty && Double(weight) != nil
         }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Exercise header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(exercise.name)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    if let equipment = exercise.equipment {
-                        Text(equipment.rawValue)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Info button - on far side of name box
-                if let exerciseItem = ExerciseLibrary.shared.exercises.first(where: { $0.name == exercise.name }),
-                   exerciseItem.instructions != nil {
-                    Button(action: {
-                        showingInstructions = true
-                    }) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(appSettings.accentColor)
-                    }
-                    .sheet(isPresented: $showingInstructions) {
-                        ExerciseInstructionsView(exercise: exerciseItem)
-                    }
-                }
-                
-                if exercise.sets.isEmpty {
-                    Label("No sets", systemImage: "exclamationmark.circle")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Label("\(exercise.sets.count) set\(exercise.sets.count == 1 ? "" : "s")", systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.primary)
-                }
-            }
-            
-            // Reference sets (from template) - show greyed out
-            if let referenceSets = exercise.referenceSets, !referenceSets.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "eye.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Reference (from template)")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    ForEach(Array(referenceSets.enumerated()), id: \.element.id) { index, set in
-                        HStack {
-                            Text("Set \(index + 1)")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                            
-                            Spacer()
-                            
-                            if isCardio {
-                                if set.weight > 0 {
-                                    Text("\(Int(set.weight)) min")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text("\(set.reps) reps")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            } else if isBodyweightOrCardio {
-                                Text("\(set.reps) reps")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("\(set.reps) × \(set.weight, specifier: "%.1f") lbs")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(.systemGray5).opacity(0.6))
-                        )
-                    }
-                }
-                .padding(.vertical, 10)
-                .padding(.horizontal, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(.systemGray6).opacity(0.4))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                )
-            }
-            
-            Divider()
-            
-            // Completed sets
+        VStack(alignment: .leading, spacing: 8) {
+            exerciseHeader
             if !exercise.sets.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Sets")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                    
-                    ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
-                        HStack {
-                            Text("Set \(index + 1)")
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            if isCardio {
-                                if set.weight > 0 {
-                                    Text("\(Int(set.weight)) min")
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text("\(set.reps) reps")
-                                        .foregroundColor(.secondary)
-                                }
-                            } else if isBodyweightOrCardio {
-                                Text("\(set.reps) reps")
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("\(set.reps) × \(set.weight, specifier: "%.1f") lbs")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
+                completedSetsView
             }
-            
-            Divider()
-            
-            // Add set form
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Add Set")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
-                
-                if isCardio {
-                    // Cardio: Time or Distance
-                    VStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            TextField("Minutes", text: $timeMinutes)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.numberPad)
-                            
-                            Text(":")
-                                .foregroundColor(.secondary)
-                            
-                            TextField("Seconds", text: $timeSeconds)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.numberPad)
-                                .frame(width: 80)
-                            
-                            Text("OR")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            TextField("Distance (miles)", text: $distance)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.decimalPad)
-                        }
-                    }
-                } else if isBodyweightOrCardio {
-                    // Bodyweight: Just reps
-                    TextField("Reps", text: $reps)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.numberPad)
-                } else {
-                    // Weighted: Reps and weight
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Reps")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("", text: $reps)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.numberPad)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Weight (lbs)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            TextField("", text: $weight)
-                                .textFieldStyle(.roundedBorder)
-                                .keyboardType(.decimalPad)
-                        }
-                    }
-                }
-                
-                Button(action: addSet) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Set")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(canAddSet ? .white : appSettings.primaryText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        Group {
-                            if canAddSet {
-                                appSettings.buttonGradient
-                            } else {
-                                appSettings.secondaryBackground
-                            }
-                        }
-                    )
-                    .cornerRadius(8)
-                }
-                .disabled(!canAddSet)
-            }
+            addSetForm
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(appSettings.cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 12)
                         .stroke(
                             LinearGradient(
-                                colors: [appSettings.accentColor.opacity(0.2), appSettings.accentColorSecondary.opacity(0.2)],
+                                colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
-                            lineWidth: 1.5
+                            lineWidth: 1
                         )
                 )
-                .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.15 : 0.1), radius: 12, x: 0, y: 6)
+                .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 10, x: 0, y: 4)
         )
         .padding(.horizontal, 12)
+        .sheet(isPresented: $showingEditSet) {
+            if let set = selectedSet {
+                EditSetView(
+                    exercise: exercise,
+                    set: set,
+                    initialReps: editReps,
+                    initialWeight: editWeight,
+                    workoutViewModel: workoutViewModel,
+                    isCardio: isCardio,
+                    isBodyweightOrCardio: isBodyweightOrCardio,
+                    onDismiss: {
+                        showingEditSet = false
+                        selectedSet = nil
+                    }
+                )
+            }
+        }
+    }
+    
+    private var exerciseHeader: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(exercise.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(appSettings.primaryText)
+                    .lineLimit(1)
+                
+                if let equipment = exercise.equipment {
+                    Text(equipment.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            infoButton
+            
+            if !exercise.sets.isEmpty {
+                setCountBadge
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var infoButton: some View {
+        if let exerciseItem = ExerciseLibrary.shared.exercises.first(where: { $0.name == exercise.name }),
+           exerciseItem.instructions != nil {
+            Button(action: {
+                showingInstructions = true
+            }) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(appSettings.accentColor.opacity(0.7))
+            }
+            .sheet(isPresented: $showingInstructions) {
+                ExerciseInstructionsView(exercise: exerciseItem)
+            }
+        }
+    }
+    
+    private var setCountBadge: some View {
+        Text("\(exercise.sets.count)")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(appSettings.buttonGradient)
+            )
+    }
+    
+    private var completedSetsView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
+                    setChip(index: index, set: set)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+    
+    private func setChip(index: Int, set: Set) -> some View {
+        Button(action: {
+            selectedSet = set
+            editReps = "\(set.reps)"
+            editWeight = String(format: "%.1f", set.weight)
+            showingEditSet = true
+        }) {
+            HStack(spacing: 4) {
+                Text("\(index + 1)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text(setDisplayText(for: set))
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundColor(appSettings.primaryText)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(appSettings.cardBackground)
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [appSettings.accentColor.opacity(0.15), appSettings.accentColorSecondary.opacity(0.15)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: appSettings.accentColor.opacity(appSettings.isDarkMode ? 0.1 : 0.08), radius: 4, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func setDisplayText(for set: Set) -> String {
+        if isCardio {
+            if set.weight > 0 {
+                return "\(Int(set.weight))m"
+            } else {
+                return "\(set.reps)s"
+            }
+        } else if isBodyweightOrCardio {
+            return "\(set.reps)"
+        } else {
+            return "\(set.reps) × \(Int(set.weight))"
+        }
+    }
+    
+    @ViewBuilder
+    private var addSetForm: some View {
+        HStack(spacing: 6) {
+            if isCardio {
+                cardioInputFields
+            } else if isBodyweightOrCardio {
+                bodyweightInputField
+            } else {
+                weightedInputFields
+            }
+            
+            addSetButton
+        }
+    }
+    
+    private var cardioInputFields: some View {
+        HStack(spacing: 4) {
+            compactTextField("M", text: $timeMinutes, width: 35)
+            Text(":")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+            compactTextField("S", text: $timeSeconds, width: 35)
+            Text("or")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+            compactTextField("Dist", text: $distance, width: 50, keyboardType: .decimalPad)
+        }
+    }
+    
+    private var bodyweightInputField: some View {
+        compactTextField("Reps", text: $reps, width: nil)
+            .frame(maxWidth: .infinity)
+    }
+    
+    private var weightedInputFields: some View {
+        Group {
+            compactTextField("Reps", text: $reps, width: 50)
+            Text("×")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+            compactTextField("Lbs", text: $weight, width: 60, keyboardType: .decimalPad)
+        }
+    }
+    
+    private func compactTextField(_ placeholder: String, text: Binding<String>, width: CGFloat?, keyboardType: UIKeyboardType = .numberPad) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.plain)
+            .keyboardType(keyboardType)
+            .font(.system(size: 12, weight: .medium))
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 6)
+            .frame(width: width)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(appSettings.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [appSettings.accentColor.opacity(0.1), appSettings.accentColorSecondary.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+            )
+    }
+    
+    private var addSetButton: some View {
+        Button(action: addSet) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(canAddSet ? .white : appSettings.primaryText.opacity(0.3))
+                .frame(width: 32, height: 32)
+                .background(
+                    Group {
+                        if canAddSet {
+                            Circle()
+                                .fill(appSettings.buttonGradient)
+                        } else {
+                            Circle()
+                                .fill(appSettings.secondaryBackground)
+                        }
+                    }
+                )
+        }
+        .disabled(!canAddSet)
     }
     
     private func addSet() {
@@ -911,55 +957,57 @@ struct ExerciseRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onSelect) {
-                HStack(spacing: 12) {
-                    // Exercise GIF/Image placeholder
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemGray6))
-                            .frame(width: 60, height: 60)
-                        
-                        if let gifURL = exercise.gifURL, !gifURL.isEmpty {
-                            AsyncImage(url: URL(string: gifURL)) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Image(systemName: "figure.strengthtraining.traditional")
-                                    .foregroundColor(.primary)
-                            }
-                            .frame(width: 60, height: 60)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        } else {
+            // Main content area - tappable to select exercise
+            HStack(spacing: 12) {
+                // Exercise GIF/Image placeholder
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray6))
+                        .frame(width: 60, height: 60)
+                    
+                    if let gifURL = exercise.gifURL, !gifURL.isEmpty {
+                        AsyncImage(url: URL(string: gifURL)) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
                             Image(systemName: "figure.strengthtraining.traditional")
-                                .font(.title2)
                                 .foregroundColor(.primary)
                         }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(exercise.name)
-                            .font(.system(size: 15, weight: .semibold))
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        Image(systemName: "figure.strengthtraining.traditional")
+                            .font(.title2)
                             .foregroundColor(.primary)
-                            .multilineTextAlignment(.leading)
-                        
-                        HStack(spacing: 8) {
-                            Label(exercise.category.rawValue, systemImage: "tag.fill")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Label(exercise.equipment.rawValue, systemImage: "dumbbell.fill")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
                     }
-                    
-                    Spacer()
                 }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(exercise.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.leading)
+                    
+                    HStack(spacing: 8) {
+                        Label(exercise.category.rawValue, systemImage: "tag.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Label(exercise.equipment.rawValue, systemImage: "dumbbell.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onSelect()
+            }
             
-            // Info button
+            // Info button - separate, only shows info
             if exercise.instructions != nil {
                 Button(action: {
                     showingInstructions = true
@@ -968,6 +1016,7 @@ struct ExerciseRowView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(appSettings.accentColor)
                 }
+                .buttonStyle(.plain)
                 .sheet(isPresented: $showingInstructions) {
                     ExerciseInstructionsView(exercise: exercise)
                 }
@@ -981,6 +1030,105 @@ struct ExerciseRowView: View {
     }
 }
 
+struct EditSetView: View {
+    let exercise: Exercise
+    let set: Set
+    @State var initialReps: String
+    @State var initialWeight: String
+    @ObservedObject var workoutViewModel: WorkoutViewModel
+    let isCardio: Bool
+    let isBodyweightOrCardio: Bool
+    let onDismiss: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appSettings: AppSettings
+    
+    @State private var reps: String
+    @State private var weight: String
+    
+    init(exercise: Exercise, set: Set, initialReps: String, initialWeight: String, workoutViewModel: WorkoutViewModel, isCardio: Bool, isBodyweightOrCardio: Bool, onDismiss: @escaping () -> Void) {
+        self.exercise = exercise
+        self.set = set
+        self.initialReps = initialReps
+        self.initialWeight = initialWeight
+        self.workoutViewModel = workoutViewModel
+        self.isCardio = isCardio
+        self.isBodyweightOrCardio = isBodyweightOrCardio
+        self.onDismiss = onDismiss
+        _reps = State(initialValue: initialReps)
+        _weight = State(initialValue: initialWeight)
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Edit Set")) {
+                    if isCardio {
+                        if set.weight > 0 {
+                            Text("Time: \(Int(set.weight)) minutes")
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Time: \(set.reps) seconds")
+                                .foregroundColor(.secondary)
+                        }
+                        Text("Cardio sets cannot be edited")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if isBodyweightOrCardio {
+                        TextField("Reps", text: $reps)
+                            .keyboardType(.numberPad)
+                    } else {
+                        TextField("Reps", text: $reps)
+                            .keyboardType(.numberPad)
+                        
+                        TextField("Weight (lbs)", text: $weight)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+            }
+            .navigationTitle("Edit Set")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                        onDismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveChanges()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+        }
+    }
+    
+    private var canSave: Bool {
+        if isCardio {
+            return false // Cardio sets can't be edited
+        } else if isBodyweightOrCardio {
+            return !reps.isEmpty && Int(reps) != nil
+        } else {
+            return !reps.isEmpty && Int(reps) != nil && !weight.isEmpty && Double(weight) != nil
+        }
+    }
+    
+    private func saveChanges() {
+        if isBodyweightOrCardio {
+            if let repsInt = Int(reps) {
+                workoutViewModel.updateSet(exerciseId: exercise.id, setId: set.id, reps: repsInt, weight: 0)
+            }
+        } else if !isCardio {
+            if let repsInt = Int(reps), let weightDouble = Double(weight) {
+                workoutViewModel.updateSet(exerciseId: exercise.id, setId: set.id, reps: repsInt, weight: weightDouble)
+            }
+        }
+        dismiss()
+        onDismiss()
+    }
+}
+
 struct PostToFeedView: View {
     let workout: Workout
     let onFinish: (String?, UIImage?) -> Void
@@ -990,6 +1138,8 @@ struct PostToFeedView: View {
     @State private var postContent = ""
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false
+    @State private var showingImageSourcePicker = false
+    @State private var imagePickerSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var isUploading = false
     @FocusState private var isTextFieldFocused: Bool
     
@@ -1001,180 +1151,215 @@ struct PostToFeedView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Success animation
-                        ZStack {
-                            Circle()
-                                .fill(appSettings.buttonGradient)
-                                .frame(width: 100, height: 100)
-                                .shadow(color: appSettings.accentColor.opacity(0.2), radius: 15, x: 0, y: 8)
-                            
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 45))
-                                .foregroundColor(appSettings.isDarkMode ? .white : appSettings.primaryText)
-                        }
-                        .padding(.top, 20)
-                        
-                        VStack(spacing: 8) {
-                            Text("Workout Complete!")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(appSettings.primaryText)
-                            
-                            Text("Great job finishing your workout!")
-                                .font(.subheadline)
-                                .foregroundColor(appSettings.secondaryText)
-                                .multilineTextAlignment(.center)
-                        }
-                        
-                        // Share toggle
-                        VStack(spacing: 12) {
-                            Toggle(isOn: $shouldPost) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "square.and.arrow.up.fill")
-                                        .foregroundColor(appSettings.primaryText)
-                                    Text("Share to Feed")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(appSettings.primaryText)
-                                }
-                            }
-                            .toggleStyle(SwitchToggleStyle(tint: appSettings.accentColor))
-                        }
-                        .padding(16)
-                        .background(appSettings.cardBackground)
-                        .cornerRadius(12)
-                        .padding(.horizontal, 16)
-                        
-                        // Post creation section (only shown if sharing)
+                        successAnimationView
+                        completionMessageView
+                        shareToggleView
                         if shouldPost {
-                            VStack(spacing: 16) {
-                                // Text input
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("What's on your mind?")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(appSettings.primaryText)
-                                    
-                                    TextEditor(text: $postContent)
-                                        .font(.system(size: 15))
-                                        .foregroundColor(appSettings.primaryText)
-                                        .frame(minHeight: 100)
-                                        .padding(8)
-                                        .background(appSettings.secondaryBackground)
-                                        .cornerRadius(8)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(appSettings.borderColor, lineWidth: 1)
-                                        )
-                                        .focused($isTextFieldFocused)
-                                    
-                                    Text("\(postContent.count)/500")
-                                        .font(.caption)
-                                        .foregroundColor(appSettings.secondaryText)
-                                        .frame(maxWidth: .infinity, alignment: .trailing)
-                                }
-                                .padding(16)
-                                .background(appSettings.cardBackground)
-                                .cornerRadius(12)
-                                
-                                // Image picker
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Add a photo")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(appSettings.primaryText)
-                                    
-                                    if let selectedImage = selectedImage {
-                                        ZStack(alignment: .topTrailing) {
-                                            Image(uiImage: selectedImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(height: 200)
-                                                .clipped()
-                                                .cornerRadius(12)
-                                            
-                                            Button(action: {
-                                                self.selectedImage = nil
-                                            }) {
-                                                Image(systemName: "xmark.circle.fill")
-                                                    .font(.system(size: 24))
-                                                    .foregroundColor(.white)
-                                                    .background(Color.black.opacity(0.5))
-                                                    .clipShape(Circle())
-                                            }
-                                            .padding(8)
-                                        }
-                                    } else {
-                                        Button(action: {
-                                            showingImagePicker = true
-                                        }) {
-                                            VStack(spacing: 12) {
-                                                Image(systemName: "photo.badge.plus")
-                                                    .font(.system(size: 32))
-                                                    .foregroundColor(appSettings.accentColor)
-                                                Text("Tap to add photo")
-                                                    .font(.system(size: 14, weight: .medium))
-                                                    .foregroundColor(appSettings.secondaryText)
-                                            }
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 150)
-                                            .background(appSettings.secondaryBackground)
-                                            .cornerRadius(12)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(appSettings.borderColor, lineWidth: 1)
-                                            )
-                                        }
-                                    }
-                                }
-                                .padding(16)
-                                .background(appSettings.cardBackground)
-                                .cornerRadius(12)
-                            }
-                            .padding(.horizontal, 16)
+                            postCreationSection
                         }
-                        
-                        // Done button
-                        Button(action: {
-                            onFinish(shouldPost ? postContent.isEmpty ? nil : postContent : nil, shouldPost ? selectedImage : nil)
-                        }) {
-                            HStack(spacing: 12) {
-                                if isUploading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Image(systemName: "checkmark.circle.fill")
-                                }
-                                Text(shouldPost ? "Share Workout" : "Done")
-                                    .fontWeight(.semibold)
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(14)
-                            .background(
-                                Group {
-                                    if shouldPost && (postContent.isEmpty && selectedImage == nil) {
-                                        appSettings.secondaryBackground
-                                    } else {
-                                        appSettings.buttonGradient
-                                    }
-                                }
-                            )
-                            .cornerRadius(12)
-                            .shadow(color: appSettings.accentColor.opacity(0.2), radius: 8, x: 0, y: 4)
-                        }
-                        .disabled(isUploading || (shouldPost && postContent.isEmpty && selectedImage == nil))
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 20)
+                        doneButtonView
                     }
                 }
             }
             .navigationTitle("Finish Workout")
             .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog("Add Photo", isPresented: $showingImageSourcePicker, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Camera") {
+                        imagePickerSourceType = .camera
+                        showingImagePicker = true
+                    }
+                }
+                Button("Photo Library") {
+                    imagePickerSourceType = .photoLibrary
+                    showingImagePicker = true
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage)
+                WorkoutImagePicker(image: $selectedImage, sourceType: imagePickerSourceType)
             }
             .onChange(of: postContent) { newValue in
                 if newValue.count > 500 {
                     postContent = String(newValue.prefix(500))
                 }
+            }
+        }
+    }
+    
+    // MARK: - View Components
+    private var successAnimationView: some View {
+        ZStack {
+            Circle()
+                .fill(appSettings.buttonGradient)
+                .frame(width: 100, height: 100)
+                .shadow(color: appSettings.accentColor.opacity(0.2), radius: 15, x: 0, y: 8)
+            
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 45))
+                .foregroundColor(appSettings.isDarkMode ? .white : appSettings.primaryText)
+        }
+        .padding(.top, 20)
+    }
+    
+    private var completionMessageView: some View {
+        VStack(spacing: 8) {
+            Text("Workout Complete!")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(appSettings.primaryText)
+            
+            Text("Great job finishing your workout!")
+                .font(.subheadline)
+                .foregroundColor(appSettings.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    private var shareToggleView: some View {
+        VStack(spacing: 12) {
+            Toggle(isOn: $shouldPost) {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.up.fill")
+                        .foregroundColor(appSettings.primaryText)
+                    Text("Share to Feed")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(appSettings.primaryText)
+                }
+            }
+            .toggleStyle(SwitchToggleStyle(tint: appSettings.accentColor))
+        }
+        .padding(16)
+        .background(appSettings.cardBackground)
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+    }
+    
+    private var postCreationSection: some View {
+        VStack(spacing: 16) {
+            textInputView
+            imagePickerView
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    private var textInputView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("What's on your mind?")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(appSettings.primaryText)
+            
+            TextEditor(text: $postContent)
+                .font(.system(size: 15))
+                .foregroundColor(appSettings.primaryText)
+                .frame(minHeight: 100)
+                .padding(8)
+                .background(appSettings.secondaryBackground)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(appSettings.borderColor, lineWidth: 1)
+                )
+                .focused($isTextFieldFocused)
+            
+            Text("\(postContent.count)/500")
+                .font(.caption)
+                .foregroundColor(appSettings.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(16)
+        .background(appSettings.cardBackground)
+        .cornerRadius(12)
+    }
+    
+    private var imagePickerView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Add a photo")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(appSettings.primaryText)
+            
+            if let selectedImage = selectedImage {
+                ZStack(alignment: .topTrailing) {
+                    Image(uiImage: selectedImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 200)
+                        .clipped()
+                        .cornerRadius(12)
+                    
+                    Button(action: {
+                        self.selectedImage = nil
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding(8)
+                }
+            } else {
+                Button(action: {
+                    showingImageSourcePicker = true
+                }) {
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 32))
+                            .foregroundColor(appSettings.accentColor)
+                        Text("Tap to add photo")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(appSettings.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
+                    .background(appSettings.secondaryBackground)
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(appSettings.borderColor, lineWidth: 1)
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(appSettings.cardBackground)
+        .cornerRadius(12)
+    }
+    
+    private var doneButtonView: some View {
+        Button(action: {
+            let content = shouldPost ? (postContent.isEmpty ? nil : postContent) : nil
+            let image = shouldPost ? selectedImage : nil
+            onFinish(content, image)
+        }) {
+            HStack(spacing: 12) {
+                if isUploading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                Text(shouldPost ? "Share Workout" : "Done")
+                    .fontWeight(.semibold)
+            }
+            .font(.headline)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(14)
+            .background(buttonBackground)
+            .cornerRadius(12)
+            .shadow(color: appSettings.accentColor.opacity(0.2), radius: 8, x: 0, y: 4)
+        }
+        .disabled(isUploading || (shouldPost && postContent.isEmpty && selectedImage == nil))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 20)
+    }
+    
+    private var buttonBackground: some View {
+        Group {
+            if shouldPost && (postContent.isEmpty && selectedImage == nil) {
+                appSettings.secondaryBackground
+            } else {
+                appSettings.buttonGradient
             }
         }
     }
@@ -1227,6 +1412,54 @@ struct TemplatePickerView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Image Picker for Workout View
+struct WorkoutImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.dismiss) var dismiss
+    var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.allowsEditing = true
+        
+        if UIImagePickerController.isSourceTypeAvailable(sourceType) {
+            picker.sourceType = sourceType
+        } else {
+            picker.sourceType = .photoLibrary
+        }
+        
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: WorkoutImagePicker
+        
+        init(_ parent: WorkoutImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let editedImage = info[.editedImage] as? UIImage {
+                parent.image = editedImage
+            } else if let originalImage = info[.originalImage] as? UIImage {
+                parent.image = originalImage
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

@@ -18,13 +18,27 @@ class AuthenticationViewModel: ObservableObject {
     @Published var currentUser: User?
     @Published var errorMessage: String?
     @Published var isLoading = false
+    @Published var isInitializing = true // Track if auth state has been checked
     
     private let authService = AuthenticationService()
+    private var cancellables: Swift.Set<AnyCancellable> = []
     
     init() {
         // Observe authentication state
-        authService.$isAuthenticated.assign(to: &$isAuthenticated)
-        authService.$currentUser.assign(to: &$currentUser)
+        authService.$isAuthenticated
+            .assign(to: &$isAuthenticated)
+        
+        authService.$currentUser
+            .assign(to: &$currentUser)
+        
+        // Wait for initial auth state check to complete
+        authService.$hasCheckedInitialState
+            .sink { [weak self] hasChecked in
+                if hasChecked {
+                    self?.isInitializing = false
+                }
+            }
+            .store(in: &cancellables)
     }
     
     func signIn() async {

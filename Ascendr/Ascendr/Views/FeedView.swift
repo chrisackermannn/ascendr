@@ -21,8 +21,13 @@ struct FeedView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                LazyVStack(spacing: 14) {
+            ZStack {
+                // Home screen gradient background
+                appSettings.homeGradient
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    LazyVStack(spacing: 14) {
                     if feedViewModel.isLoading {
                         ProgressView("Loading posts...")
                             .padding(12)
@@ -67,6 +72,7 @@ struct FeedView: View {
                     }
                 }
                 .padding(12)
+                }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -470,6 +476,7 @@ struct TemplateNameInputView: View {
             }
             .navigationTitle("Save Template")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {

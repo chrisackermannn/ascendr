@@ -221,6 +221,23 @@ class LiveWorkoutViewModel: ObservableObject {
             try await databaseService.saveWorkoutToHistory(userId: session.userId2, workout: user2Workout)
             print("✅ Personal workout saved for user2")
             
+            // Award XP to both users
+            let baseXP = 50
+            let user1DurationBonus = Int(user1Workout.duration / 60)
+            let user2DurationBonus = Int(user2Workout.duration / 60)
+            try await databaseService.awardXP(userId: session.userId1, amount: baseXP + user1DurationBonus)
+            try await databaseService.awardXP(userId: session.userId2, amount: baseXP + user2DurationBonus)
+            
+            // Check monthly challenges for both users
+            let user1ChallengeCompleted = try await databaseService.checkMonthlyChallenge(userId: session.userId1)
+            let user2ChallengeCompleted = try await databaseService.checkMonthlyChallenge(userId: session.userId2)
+            if user1ChallengeCompleted {
+                print("🎉 Monthly challenge completed for user1! Badge awarded.")
+            }
+            if user2ChallengeCompleted {
+                print("🎉 Monthly challenge completed for user2! Badge awarded.")
+            }
+            
             // End the live workout session
             try await databaseService.endLiveWorkoutSession(sessionId: sessionId)
             

@@ -89,5 +89,21 @@ class ProfileViewModel: ObservableObject {
         
         isLoading = false
     }
+    
+    func deleteWorkout(_ workout: Workout, userId: String) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            try await databaseService.deleteWorkoutFromHistory(userId: userId, workoutId: workout.id)
+            // Remove from local array
+            workouts.removeAll { $0.id == workout.id }
+            sharedWorkouts.removeAll { $0.id == workout.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        
+        isLoading = false
+    }
 }
 

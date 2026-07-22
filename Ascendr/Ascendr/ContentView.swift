@@ -11,25 +11,21 @@ struct ContentView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var healthKitManager: HealthKitManager
-    @State private var isLaunching = true
     
     var body: some View {
         Group {
-            if isLaunching {
-                // Launch screen
+            if authViewModel.isInitializing {
+                // Show launch screen while checking auth state
                 ZStack {
-                    appSettings.primaryBackground
+                    // Home screen gradient background
+                    appSettings.homeGradient
                         .ignoresSafeArea()
                     VStack(spacing: 20) {
                         Text("Ascendr")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(appSettings.primaryText)
-                    }
-                }
-                .onAppear {
-                    // Show launch screen briefly
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isLaunching = false
+                            .foregroundStyle(
+                                appSettings.buttonGradient
+                            )
                     }
                 }
             } else if authViewModel.isAuthenticated {

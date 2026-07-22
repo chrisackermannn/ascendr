@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var usernameError: String?
     @State private var showingSuccess = false
     @State private var showingImagePicker = false
+    @State private var showingImageSourcePicker = false
+    @State private var imagePickerSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var selectedImage: UIImage?
     @State private var isRequestingHealthKit = false
     @State private var healthKitError: String?
@@ -26,89 +28,14 @@ struct SettingsView: View {
     
     var body: some View {
         NavigationView {
-            Form {
+            ZStack {
+                // Home screen gradient background
+                appSettings.homeGradient
+                    .ignoresSafeArea()
+                
+                Form {
                 Section("Profile") {
-                    // Profile Picture Section
-                    VStack(spacing: 16) {
-                        ZStack(alignment: .bottomTrailing) {
-                            ZStack {
-                                // Use id modifier to force refresh when URL changes
-                                AsyncImage(url: URL(string: authViewModel.currentUser?.profileImageURL ?? "")) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        ZStack {
-                                            Circle()
-                                                .fill(appSettings.secondaryBackground)
-                                            ProgressView()
-                                        }
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    case .failure:
-                                        ZStack {
-                                            Circle()
-                                                .fill(appSettings.secondaryBackground)
-                                            Image(systemName: "person.circle.fill")
-                                                .resizable()
-                                                .foregroundColor(.secondary)
-                                        }
-                                    @unknown default:
-                                        ZStack {
-                                            Circle()
-                                                .fill(appSettings.secondaryBackground)
-                                            Image(systemName: "person.circle.fill")
-                                                .resizable()
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                }
-                                .id(authViewModel.currentUser?.profileImageURL ?? UUID().uuidString) // Force refresh on URL change
-                                .frame(width: 100, height: 100)
-                                .clipShape(Circle())
-                                
-                                // Loading overlay
-                                if profileViewModel.isLoading {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.black.opacity(0.3))
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    }
-                                    .frame(width: 100, height: 100)
-                                }
-                            }
-                            
-                            // Edit button overlay
-                            Button(action: {
-                                showingImagePicker = true
-                            }) {
-                                Circle()
-                                    .fill(Color.black)
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Image(systemName: "camera.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 14, weight: .semibold))
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .offset(x: 8, y: 8)
-                            .disabled(profileViewModel.isLoading)
-                        }
-                        
-                        if let error = profileViewModel.errorMessage {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        } else {
-                            Text("Tap to change profile picture")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    profilePictureSection
                 }
                 
                 Section("Account") {
@@ -244,11 +171,13 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                }
             }
             .id(appSettings.isDarkMode) // Force refresh when theme changes
             .preferredColorScheme(appSettings.isDarkMode ? .dark : .light)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")
@@ -268,8 +197,21 @@ struct SettingsView: View {
                     }
                 }
             }
+            .confirmationDialog("Change Profile Picture", isPresented: $showingImageSourcePicker, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Camera") {
+                        imagePickerSourceType = .camera
+                        showingImagePicker = true
+                    }
+                }
+                Button("Photo Library") {
+                    imagePickerSourceType = .photoLibrary
+                    showingImagePicker = true
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage)
+                SettingsImagePicker(image: $selectedImage, sourceType: imagePickerSourceType)
             }
             .onChange(of: selectedImage) { oldValue, newValue in
                 if let image = newValue, let userId = authViewModel.currentUser?.id {
@@ -347,6 +289,148 @@ struct SettingsView: View {
                 self.healthKitError = "Authorization was not granted. Please check your Health app settings."
             }
             self.isRequestingHealthKit = false
+        }
+    }
+    
+    // MARK: - View Components
+    private var profilePictureSection: some View {
+        VStack(spacing: 16) {
+            ZStack(alignment: .bottomTrailing) {
+                profileImageWithOverlay
+                editButtonOverlay
+            }
+            
+            if let error = profileViewModel.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            } else {
+                Text("Tap to change profile picture")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+    
+    private var profileImageWithOverlay: some View {
+        ZStack {
+            AsyncImage(url: URL(string: authViewModel.currentUser?.profileImageURL ?? "")) { phase in
+                switch phase {
+                case .empty:
+                    emptyStateView
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .failure:
+                    failureStateView
+                @unknown default:
+                    failureStateView
+                }
+            }
+            .id(authViewModel.currentUser?.profileImageURL ?? UUID().uuidString)
+            .frame(width: 100, height: 100)
+            .clipShape(Circle())
+            
+            if profileViewModel.isLoading {
+                loadingOverlay
+            }
+        }
+    }
+    
+    private var emptyStateView: some View {
+        ZStack {
+            Circle()
+                .fill(appSettings.secondaryBackground)
+            ProgressView()
+        }
+    }
+    
+    private var failureStateView: some View {
+        ZStack {
+            Circle()
+                .fill(appSettings.secondaryBackground)
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var loadingOverlay: some View {
+        ZStack {
+            Circle()
+                .fill(Color.black.opacity(0.3))
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+        }
+        .frame(width: 100, height: 100)
+    }
+    
+    private var editButtonOverlay: some View {
+        Button(action: {
+            showingImageSourcePicker = true
+        }) {
+            Circle()
+                .fill(Color.black)
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: "camera.fill")
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .semibold))
+                )
+        }
+        .buttonStyle(.plain)
+        .offset(x: 8, y: 8)
+        .disabled(profileViewModel.isLoading)
+    }
+}
+
+// MARK: - Image Picker for Settings
+struct SettingsImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.dismiss) var dismiss
+    var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.allowsEditing = true
+        
+        if UIImagePickerController.isSourceTypeAvailable(sourceType) {
+            picker.sourceType = sourceType
+        } else {
+            picker.sourceType = .photoLibrary
+        }
+        
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: SettingsImagePicker
+        
+        init(_ parent: SettingsImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let editedImage = info[.editedImage] as? UIImage {
+                parent.image = editedImage
+            } else if let originalImage = info[.originalImage] as? UIImage {
+                parent.image = originalImage
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

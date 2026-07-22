@@ -15,8 +15,24 @@ class AuthenticationService: ObservableObject {
     
     @Published var currentUser: User?
     @Published var isAuthenticated = false
+    @Published var hasCheckedInitialState = false
     
     init() {
+        // Check current user immediately (synchronous check for cached session)
+        if let firebaseUser = auth.currentUser {
+            Task { @MainActor in
+                await fetchUserData(userId: firebaseUser.uid)
+                isAuthenticated = true
+                databaseService.setUserOnline(userId: firebaseUser.uid)
+                hasCheckedInitialState = true
+            }
+        } else {
+            // No cached session, mark as checked immediately
+            Task { @MainActor in
+                hasCheckedInitialState = true
+            }
+        }
+        
         // Listen for authentication state changes
         auth.addStateDidChangeListener { [weak self] _, firebaseUser in
             Task { @MainActor in
@@ -30,6 +46,8 @@ class AuthenticationService: ObservableObject {
                     self?.currentUser = nil
                     self?.isAuthenticated = false
                 }
+                // Mark as checked after listener fires
+                self?.hasCheckedInitialState = true
             }
         }
     }

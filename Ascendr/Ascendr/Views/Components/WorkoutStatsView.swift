@@ -10,81 +10,105 @@ import SwiftUI
 struct WorkoutStatsView: View {
     let startTime: Date?
     @EnvironmentObject var appSettings: AppSettings
+    @StateObject private var healthKitManager = HealthKitManager.shared
     @State private var elapsedTime: TimeInterval = 0
-    @State private var stepCount: Int = 0
-    @State private var calories: Double = 0
     @State private var timer: Timer?
     @State private var timerStartTime: Date?
     
-    private let healthKitService = HealthKitService()
-    
     var body: some View {
-        VStack(spacing: 12) {
-            // Timer - Large and prominent
-            VStack(spacing: 8) {
-                Text("Workout Time")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(1)
-                
-                Text(formatTime(elapsedTime))
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(appSettings.buttonGradient)
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(
-                        LinearGradient(
-                            colors: [appSettings.cardBackground, appSettings.secondaryBackground],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        VStack(spacing: 8) {
+            // Compact horizontal layout
+            HStack(spacing: 10) {
+                // Timer - Compact
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(appSettings.buttonGradient)
+                    Text(formatTime(elapsedTime))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(appSettings.primaryText)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(appSettings.cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(appSettings.buttonGradient, lineWidth: 1.5)
                         )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                appSettings.buttonGradient,
-                                lineWidth: 2
-                            )
-                    )
-                    .shadow(color: appSettings.accentColor.opacity(0.15), radius: 15, x: 0, y: 8)
-            )
-            
-            // HealthKit stats
-            HStack(spacing: 12) {
-                // Steps
-                StatCard(
-                    icon: "figure.walk",
-                    title: "Steps",
-                    value: "\(stepCount)",
-                    color: .primary
                 )
                 
-                // Calories
-                StatCard(
-                    icon: "flame.fill",
-                    title: "Calories",
-                    value: "\(Int(calories))",
-                    color: .primary
+                // Steps - Compact
+                HStack(spacing: 6) {
+                    Image(systemName: "figure.walk")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(healthKitManager.stepCount)")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(appSettings.primaryText)
+                        Text("Steps")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(appSettings.cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                
+                // Calories - Compact
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Int(healthKitManager.activeEnergy))")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(appSettings.primaryText)
+                        Text("Cal")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(appSettings.cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
                 )
             }
         }
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .onAppear {
             if startTime != nil {
                 startTimer()
             }
-            requestHealthKitAccess()
+            // Request HealthKit access if needed
+            if !healthKitManager.isAuthorized {
+                healthKitManager.requestAuthorization()
+            }
         }
         .onDisappear {
             stopTimer()
         }
         .onChange(of: startTime) { oldValue, newValue in
-            // Restart timer when startTime changes
             stopTimer()
             if newValue != nil {
                 startTimer()
@@ -95,19 +119,12 @@ struct WorkoutStatsView: View {
     private func startTimer() {
         guard let startTime = startTime else { return }
         
-        // Store the start time in state so we can access it from the timer
         timerStartTime = startTime
-        
-        // Update immediately
         elapsedTime = Date().timeIntervalSince(startTime)
-        
-        // Stop any existing timer first
         stopTimer()
         
-        // Capture the start time in the closure
         let capturedStartTime = startTime
         
-        // Update every second - timer runs on main run loop
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task {
                 await MainActor.run {
@@ -123,50 +140,6 @@ struct WorkoutStatsView: View {
         timer = nil
     }
     
-    private func requestHealthKitAccess() {
-        Task {
-            do {
-                try await healthKitService.requestAuthorization()
-                await loadHealthData()
-            } catch {
-                print("HealthKit authorization error: \(error)")
-            }
-        }
-    }
-    
-    private func loadHealthData() async {
-        // Load steps
-        if let steps = try? await healthKitService.getTodayStepCount() {
-            await MainActor.run {
-                stepCount = steps
-            }
-        }
-        
-        // Load calories
-        if let cals = try? await healthKitService.getTodayActiveEnergy() {
-            await MainActor.run {
-                calories = cals
-            }
-        }
-        
-        // Update periodically
-        Task {
-            while true {
-                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
-                if let steps = try? await healthKitService.getTodayStepCount() {
-                    await MainActor.run {
-                        stepCount = steps
-                    }
-                }
-                if let cals = try? await healthKitService.getTodayActiveEnergy() {
-                    await MainActor.run {
-                        calories = cals
-                    }
-                }
-            }
-        }
-    }
-    
     private func formatTime(_ time: TimeInterval) -> String {
         let hours = Int(time) / 3600
         let minutes = Int(time) / 60 % 60
@@ -180,44 +153,6 @@ struct WorkoutStatsView: View {
     }
 }
 
-struct StatCard: View {
-    let icon: String
-    let title: String
-    let value: String
-    let color: Color
-    @EnvironmentObject var appSettings: AppSettings
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(
-                    appSettings.buttonGradient
-                )
-            
-            Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(appSettings.cardBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(color.opacity(0.3), lineWidth: 1.5)
-                )
-                .shadow(color: color.opacity(appSettings.isDarkMode ? 0.2 : 0.1), radius: 8, x: 0, y: 4)
-        )
-    }
-}
 
 // Compact version for live workouts
 struct CompactWorkoutStatsView: View {

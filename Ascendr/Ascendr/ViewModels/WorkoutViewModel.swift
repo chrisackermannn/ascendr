@@ -66,6 +66,29 @@ class WorkoutViewModel: ObservableObject {
         }
     }
     
+    func updateSet(exerciseId: String, setId: String, reps: Int, weight: Double) {
+        if let exerciseIndex = exercises.firstIndex(where: { $0.id == exerciseId }),
+           let setIndex = exercises[exerciseIndex].sets.firstIndex(where: { $0.id == setId }) {
+            // Update in exercises array
+            exercises[exerciseIndex].sets[setIndex].reps = reps
+            exercises[exerciseIndex].sets[setIndex].weight = weight
+            
+            // Update in current workout
+            if let workoutIndex = currentWorkout?.exercises.firstIndex(where: { $0.id == exerciseId }),
+               let workoutSetIndex = currentWorkout?.exercises[workoutIndex].sets.firstIndex(where: { $0.id == setId }) {
+                currentWorkout?.exercises[workoutIndex].sets[workoutSetIndex].reps = reps
+                currentWorkout?.exercises[workoutIndex].sets[workoutSetIndex].weight = weight
+            }
+        }
+        
+        // If in partner mode, sync to Realtime Database
+        if isPartnerMode, let workout = currentWorkout {
+            Task {
+                await syncWorkoutToPartner(workout)
+            }
+        }
+    }
+    
     var canFinishWorkout: Bool {
         guard !exercises.isEmpty else { return false }
         
@@ -98,6 +121,18 @@ class WorkoutViewModel: ObservableObject {
         do {
             // Save workout to user's workout history in Realtime Database
             try await databaseService.saveWorkoutToHistory(userId: workout.userId, workout: workout)
+            
+            // Award XP for completing workout (base: 50 XP, bonus for duration)
+            let baseXP = 50
+            let durationBonus = Int(workout.duration / 60) // 1 XP per minute
+            let totalXP = baseXP + durationBonus
+            try await databaseService.awardXP(userId: workout.userId, amount: totalXP)
+            
+            // Check monthly challenge
+            let challengeCompleted = try await databaseService.checkMonthlyChallenge(userId: workout.userId)
+            if challengeCompleted {
+                print("🎉 Monthly challenge completed! Badge awarded.")
+            }
             
             // Post to feed if requested
             if shouldPostToFeed {

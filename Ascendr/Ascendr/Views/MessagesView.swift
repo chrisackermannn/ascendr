@@ -18,7 +18,8 @@ struct MessagesView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                appSettings.primaryBackground
+                // Home screen gradient background
+                appSettings.homeGradient
                     .ignoresSafeArea()
                 
                 if messagingViewModel.conversations.isEmpty {

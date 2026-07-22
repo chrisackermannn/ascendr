@@ -13,6 +13,8 @@ struct LiveWorkoutInvite: Identifiable {
     let fromUserId: String
     let fromUserName: String
     let toUserId: String
+    let toUserName: String?
+    let sessionId: String?
     let status: String
     let timestamp: Date
 }
@@ -24,7 +26,9 @@ struct LiveWorkoutSession: Identifiable {
     let userName1: String
     let userId2: String
     let userName2: String
-    let status: String
+    let status: String // "waiting", "active", "ended"
     var exercises: [Exercise]
+    var user1Ready: Bool
+    var user2Ready: Bool
 }
 

@@ -81,133 +81,88 @@ struct LiveWorkoutView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Enhanced header with partner info and live indicator
-                VStack(spacing: 12) {
-                    HStack {
-                        // Current user
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("You")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(authViewModel.currentUser?.username ?? "You")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                        }
-                        
-                        Spacer()
-                        
-                        // Live indicator
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
-                            Text("LIVE")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(.green)
+            ScrollView {
+                VStack(spacing: 10) {
+                    // Compact stats bar
+                    WorkoutStatsView(startTime: liveWorkoutViewModel.workoutStartTime)
+                        .id(liveWorkoutViewModel.workoutStartTime?.timeIntervalSince1970 ?? 0)
+                    
+                    // Partner info with tabs - Compact
+                    VStack(spacing: 8) {
+                        // Tab selector
+                        HStack(spacing: 0) {
+                            TabButton(
+                                title: "You",
+                                isSelected: selectedTab == .you,
+                                action: { selectedTab = .you }
+                            )
+                            
+                            TabButton(
+                                title: liveWorkoutViewModel.partnerName ?? "Partner",
+                                isSelected: selectedTab == .partner,
+                                action: { selectedTab = .partner }
+                            )
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.green.opacity(0.1))
-                        )
                         
-                        Spacer()
-                        
-                        // Partner
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Partner")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(liveWorkoutViewModel.partnerName ?? "Partner")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    
-                    // Combined weight pushed counter
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Combined Weight Pushed")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("\(Int(combinedWeightPushed)) lbs")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .monospacedDigit()
-                        }
-                        
-                        Spacer()
-                        
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("\(selectedTab == .you ? "Your" : "Partner's") Weight")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("\(Int(currentTabWeightPushed)) lbs")
-                                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .monospacedDigit()
-                        }
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemGray6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                        // Live indicator and combined weight
+                        HStack(spacing: 12) {
+                            // Live indicator
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 8, height: 8)
+                                Text("LIVE")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color.green.opacity(0.15))
                             )
-                    )
-                    .padding(.horizontal, 12)
-                }
-                .padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                
-                // Tab selector
-                HStack(spacing: 0) {
-                    TabButton(
-                        title: "You",
-                        isSelected: selectedTab == .you,
-                        action: { selectedTab = .you }
-                    )
-                    
-                    TabButton(
-                        title: liveWorkoutViewModel.partnerName ?? "Partner",
-                        isSelected: selectedTab == .partner,
-                        action: { selectedTab = .partner }
-                    )
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground))
-                
-                // Compact workout stats with timer
-                CompactWorkoutStatsView(startTime: liveWorkoutViewModel.workoutStartTime)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                
-                // Exercises list
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if displayedExercises.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "figure.strengthtraining.traditional")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(.secondary.opacity(0.3))
-                                
-                                Text("No exercises yet")
-                                    .font(.headline)
+                            
+                            Spacer()
+                            
+                            // Combined weight
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Combined")
+                                    .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.secondary)
-                                
-                                Text("Tap + to add an exercise")
-                                    .font(.subheadline)
+                                Text("\(Int(combinedWeightPushed)) lbs")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(appSettings.primaryText)
+                                    .monospacedDigit()
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                    }
+                    
+                    // Exercises section - Compact
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("Exercises")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(appSettings.primaryText)
+                            Spacer()
+                            Text("\(displayedExercises.count)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        
+                        if displayedExercises.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "figure.strengthtraining.traditional")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.secondary.opacity(0.3))
+                                Text("No exercises yet")
+                                    .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.secondary)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 60)
+                            .padding(.vertical, 40)
                         } else {
                             ForEach(displayedExercises) { exercise in
                                 LiveExerciseCardView(
@@ -220,62 +175,88 @@ struct LiveWorkoutView: View {
                                     }
                                 )
                             }
-                            
-                            // Add exercise button
-                            Button(action: {
-                                showingExercisePicker = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                    Text("Add Exercise")
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(12)
-                                .background(Color(.systemGray6))
-                                .foregroundColor(.primary)
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.black.opacity(0.2), lineWidth: 1)
-                                )
-                            }
-                            .padding(.horizontal, 12)
                         }
+                        
+                        // Add exercise button - Compact
+                        Button(action: {
+                            showingExercisePicker = true
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 14))
+                                Text("Add Exercise")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundColor(appSettings.primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(appSettings.secondaryBackground)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(appSettings.accentColor.opacity(0.3), lineWidth: 1.5)
+                                    )
+                            )
+                        }
+                        .padding(.horizontal, 12)
                     }
-                    .padding(.vertical)
-                }
-                
-                // Finish workout button
-                Button(action: {
-                    Task {
-                        await liveWorkoutViewModel.endWorkout(currentUserName: authViewModel.currentUser?.username ?? "")
-                        dismiss()
-                    }
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "stop.circle.fill")
-                        Text("Finish Workout")
-                            .fontWeight(.semibold)
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .background(
-                        LinearGradient(
-                            colors: appSettings.isDarkMode ? [appSettings.accentColor, appSettings.accentColorSecondary] : [appSettings.accentColor, appSettings.accentColorSecondary],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                    .padding(.top, 4)
+                    
+                    // Error message - Compact
+                    if let errorMessage = liveWorkoutViewModel.errorMessage {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.red)
+                            Text(errorMessage)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.red)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            Capsule()
+                                .fill(Color.red.opacity(0.1))
                         )
-                    )
-                    .cornerRadius(10)
-                    .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
+                        .padding(.horizontal, 12)
+                    }
+                    
+                    // Finish workout button - Compact
+                    Button(action: {
+                        Task {
+                            await liveWorkoutViewModel.endWorkout(currentUserName: authViewModel.currentUser?.username ?? "")
+                            dismiss()
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            if liveWorkoutViewModel.isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 14))
+                                Text("Finish Workout")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(appSettings.buttonGradient)
+                        .cornerRadius(12)
+                        .shadow(color: appSettings.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: appSettings.accentColor.opacity(0.2), radius: 12, x: 0, y: 6)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 20)
                 }
-                .padding(12)
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Ascendr")

@@ -19,7 +19,8 @@ struct ChatView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                appSettings.primaryBackground
+                // Home screen gradient background
+                appSettings.homeGradient
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -102,6 +103,7 @@ struct ChatView: View {
             }
             .navigationTitle(otherUser.username)
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Back") {

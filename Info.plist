@@ -10,6 +10,8 @@
 	<string>This app requires access to your health data to show step counts.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>This app tracks fitness progress using your step count.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>This app needs access to your music library to display what's currently playing and allow you to skip tracks during workouts.</string>
 </dict>
 </plist>
 

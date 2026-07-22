@@ -110,22 +110,22 @@ struct UserProfileView: View {
                     .padding()
                     
                     // Stats - Enhanced
-                    HStack(spacing: 20) {
-                        StatCardView(
+                    HStack(spacing: 12) {
+                        StatCard(
                             value: "\(publicWorkouts.count)",
                             label: "Public Workouts",
                             icon: "figure.strengthtraining.traditional",
-                            color: .blue
+                            color: Color.blue
                         )
                         
-                        StatCardView(
+                        StatCard(
                             value: "\(user.workoutCount)",
                             label: "Total Workouts",
                             icon: "chart.bar.fill",
-                            color: .purple
+                            color: Color.purple
                         )
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 16)
                     
                     // Public Workouts
                     VStack(alignment: .leading, spacing: 12) {
@@ -197,6 +197,124 @@ struct UserProfileView: View {
                 self.isLoading = false
             }
         }
+    }
+}
+
+// MARK: - Stat Card Component
+struct StatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+    var action: (() -> Void)? = nil
+    
+    var body: some View {
+        Button(action: { action?() }) {
+            VStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(color)
+                
+                Text(value)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Workout History Card
+struct WorkoutHistoryCard: View {
+    let workout: Workout
+    
+    var body: some View {
+        HStack(spacing: 14) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 18, weight: .semibold))
+            }
+            
+            // Content
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(workout.date, style: .date)
+                        .font(.system(size: 15, weight: .semibold))
+                    
+                    Spacer()
+                    
+                    if let partnerName = workout.partnerName {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 10))
+                            Text(workout.partnerName ?? "")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.15))
+                        .cornerRadius(8)
+                    }
+                }
+                
+                HStack(spacing: 12) {
+                    Label("\(workout.exercises.count)", systemImage: "list.bullet")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                    
+                    if workout.duration > 0 {
+                        Label(formatDuration(workout.duration), systemImage: "clock")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary.opacity(0.5))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        )
+        .padding(.horizontal, 16)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

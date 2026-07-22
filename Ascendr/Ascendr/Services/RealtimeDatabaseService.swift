@@ -24,7 +24,8 @@ class RealtimeDatabaseService {
             "username": user.username,
             "createdAtTimestamp": user.createdAt.timeIntervalSince1970,
             "workoutCount": user.workoutCount,
-            "totalWorkoutTime": user.totalWorkoutTime
+            "totalWorkoutTime": user.totalWorkoutTime,
+            "xp": user.xp
         ]
         
         if let profileImageURL = user.profileImageURL {
@@ -34,6 +35,30 @@ class RealtimeDatabaseService {
         if let bio = user.bio {
             userDict["bio"] = bio
         }
+        
+        if let pinnedBadgeId = user.pinnedBadgeId {
+            userDict["pinnedBadgeId"] = pinnedBadgeId
+        }
+        
+        // Encode badges
+        var badgesArray: [[String: Any]] = []
+        for badge in user.badges {
+            var badgeDict: [String: Any] = [
+                "id": badge.id,
+                "name": badge.name,
+                "description": badge.description,
+                "iconName": badge.iconName,
+                "category": badge.category.rawValue
+            ]
+            if let earnedDate = badge.earnedDate {
+                badgeDict["earnedDateTimestamp"] = earnedDate.timeIntervalSince1970
+            }
+            if let challengeId = badge.challengeId {
+                badgeDict["challengeId"] = challengeId
+            }
+            badgesArray.append(badgeDict)
+        }
+        userDict["badges"] = badgesArray
         
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             userRef.setValue(userDict) { error, _ in
@@ -105,6 +130,21 @@ class RealtimeDatabaseService {
     }
     
     // MARK: - Workout History
+    
+    /// Delete workout from user's workout history
+    func deleteWorkoutFromHistory(userId: String, workoutId: String) async throws {
+        let workoutRef = database.child("users").child(userId).child("workouts").child(workoutId)
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            workoutRef.removeValue { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
     
     /// Save workout to user's workout history
     func saveWorkoutToHistory(userId: String, workout: Workout) async throws {
@@ -381,6 +421,18 @@ class RealtimeDatabaseService {
         let bio = dict["bio"] as? String
         let workoutCount = dict["workoutCount"] as? Int ?? 0
         let totalWorkoutTime = dict["totalWorkoutTime"] as? TimeInterval ?? 0
+        let xp = dict["xp"] as? Int ?? 0
+        let pinnedBadgeId = dict["pinnedBadgeId"] as? String
+        
+        // Decode badges
+        var badges: [Badge] = []
+        if let badgesArray = dict["badges"] as? [[String: Any]] {
+            for badgeDict in badgesArray {
+                if let badge = try? decodeBadge(from: badgeDict) {
+                    badges.append(badge)
+                }
+            }
+        }
         
         let createdAt: Date
         if let timestamp = dict["createdAtTimestamp"] as? TimeInterval {
@@ -397,7 +449,40 @@ class RealtimeDatabaseService {
             createdAt: createdAt,
             bio: bio,
             workoutCount: workoutCount,
-            totalWorkoutTime: totalWorkoutTime
+            totalWorkoutTime: totalWorkoutTime,
+            xp: xp,
+            badges: badges,
+            pinnedBadgeId: pinnedBadgeId
+        )
+    }
+    
+    private func decodeBadge(from dict: [String: Any]) throws -> Badge {
+        guard let id = dict["id"] as? String,
+              let name = dict["name"] as? String,
+              let description = dict["description"] as? String,
+              let iconName = dict["iconName"] as? String,
+              let categoryString = dict["category"] as? String,
+              let category = BadgeCategory(rawValue: categoryString) else {
+            throw NSError(domain: "RealtimeDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid badge data"])
+        }
+        
+        let challengeId = dict["challengeId"] as? String
+        
+        let earnedDate: Date?
+        if let timestamp = dict["earnedDateTimestamp"] as? TimeInterval {
+            earnedDate = Date(timeIntervalSince1970: timestamp)
+        } else {
+            earnedDate = nil
+        }
+        
+        return Badge(
+            id: id,
+            name: name,
+            description: description,
+            iconName: iconName,
+            category: category,
+            earnedDate: earnedDate,
+            challengeId: challengeId
         )
     }
     
@@ -1289,13 +1374,12 @@ class RealtimeDatabaseService {
     // MARK: - Live Workouts
     
     /// Send a live workout invite
-    func sendLiveWorkoutInvite(from userId: String, fromUserName: String, to friendId: String) async throws -> String {
+    func sendLiveWorkoutInvite(from userId: String, fromUserName: String, to friendId: String, toUserName: String? = nil) async throws -> String {
         let inviteId = UUID().uuidString
-        let inviteRef = database.child("liveWorkoutInvites").child(friendId).child(inviteId)
         let now = Date().timeIntervalSince1970
-        let expirationTime = now + 60 // 60 seconds from now
+        let expirationTime = now + 120 // 2 minutes from now
         
-        let inviteData: [String: Any] = [
+        var inviteData: [String: Any] = [
             "inviteId": inviteId,
             "fromUserId": userId,
             "fromUserName": fromUserName,
@@ -1305,8 +1389,18 @@ class RealtimeDatabaseService {
             "expirationTimestamp": expirationTime
         ]
         
+        // Add toUserName if provided
+        if let toUserName = toUserName {
+            inviteData["toUserName"] = toUserName
+        }
+        
+        // Store invite for BOTH users (inviter and invitee)
+        let inviteeRef = database.child("liveWorkoutInvites").child(friendId).child(inviteId)
+        let inviterRef = database.child("liveWorkoutInvites").child(userId).child(inviteId)
+        
+        // Store for invitee (receiving the invite)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            inviteRef.setValue(inviteData) { error, _ in
+            inviteeRef.setValue(inviteData) { error, _ in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -1315,15 +1409,29 @@ class RealtimeDatabaseService {
             }
         }
         
-        // Auto-delete after 60 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-            inviteRef.removeValue()
+        // Store for inviter (sent the invite) - same data but marked as sent
+        var inviterInviteData = inviteData
+        inviterInviteData["isSentInvite"] = true // Mark as sent invite for inviter
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            inviterRef.setValue(inviterInviteData) { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        // Auto-delete after 2 minutes for both users
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+            inviteeRef.removeValue()
+            inviterRef.removeValue()
         }
         
         return inviteId
     }
     
-    /// Create a live workout session
+    /// Create a live workout session (starts in waiting room)
     func createLiveWorkoutSession(sessionId: String, userId1: String, userName1: String, userId2: String, userName2: String) async throws {
         let sessionRef = database.child("liveWorkouts").child(sessionId)
         let sessionData: [String: Any] = [
@@ -1332,7 +1440,9 @@ class RealtimeDatabaseService {
             "userName1": userName1,
             "userId2": userId2,
             "userName2": userName2,
-            "status": "active",
+            "status": "waiting", // Start in waiting room
+            "user1Ready": false,
+            "user2Ready": false,
             "createdAt": Date().timeIntervalSince1970,
             "exercises": []
         ]
@@ -1348,12 +1458,65 @@ class RealtimeDatabaseService {
         }
     }
     
-    /// Reject a live workout invite
+    /// Reject a live workout invite (removes from both inviter and invitee)
     func rejectLiveWorkoutInvite(inviteId: String, toUserId: String) async throws {
+        // First, get the invite to find the inviter's userId
         let inviteRef = database.child("liveWorkoutInvites").child(toUserId).child(inviteId)
         
+        let inviteData = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any]?, Error>) in
+            inviteRef.observeSingleEvent(of: .value) { snapshot, error in
+                if let error = error {
+                    let dbError: Error
+                    if let nsError = error as? NSError {
+                        dbError = nsError
+                    } else {
+                        dbError = NSError(domain: "RealtimeDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Database error: \(error)"])
+                    }
+                    continuation.resume(throwing: dbError)
+                    return
+                }
+                
+                guard snapshot.exists(), let value = snapshot.value as? [String: Any] else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                continuation.resume(returning: value)
+            }
+        }
+        
+        guard let inviteData = inviteData,
+              let fromUserId = inviteData["fromUserId"] as? String else {
+            // If we can't find the invite, just remove from invitee
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                inviteRef.removeValue { error, _ in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+            return
+        }
+        
+        // Remove from both users
+        let inviterRef = database.child("liveWorkoutInvites").child(fromUserId).child(inviteId)
+        
+        // Remove from invitee
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             inviteRef.removeValue { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        // Remove from inviter
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            inviterRef.removeValue { error, _ in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -1387,34 +1550,63 @@ class RealtimeDatabaseService {
                     return
                 }
                 
-                // Remove invite
-                inviteRef.removeValue { error, _ in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    
-                    // Create live workout session
-                    let sessionId = UUID().uuidString
-                    Task {
-                        do {
-                            // Get userName2 from database
-                            let toUser = try? await self.fetchUser(userId: toUserId)
-                            let finalUserName2 = toUser?.username ?? toUserName
-                            
-                            try await self.createLiveWorkoutSession(
-                                sessionId: sessionId,
-                                userId1: fromUserId,
-                                userName1: fromUserName,
-                                userId2: toUserId,
-                                userName2: finalUserName2
-                            )
-                            
-                            // Notify the inviter by creating a session reference for them
-                            // They can listen for this session
-                            continuation.resume(returning: sessionId)
-                        } catch {
+                // Check if session already exists (created by inviter)
+                if let existingSessionId = inviteData["sessionId"] as? String {
+                    // Session already exists, just remove invite and return session ID
+                    inviteRef.removeValue { error, _ in
+                        if let error = error {
                             continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: existingSessionId)
+                        }
+                    }
+                } else {
+                    // Remove invite
+                    inviteRef.removeValue { error, _ in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                            return
+                        }
+                        
+                        // Create live workout session (fallback for old invites)
+                        let sessionId = UUID().uuidString
+                        Task {
+                            do {
+                                // Get userName2 from database
+                                let toUser = try? await self.fetchUser(userId: toUserId)
+                                let finalUserName2 = toUser?.username ?? toUserName
+                                
+                                try await self.createLiveWorkoutSession(
+                                    sessionId: sessionId,
+                                    userId1: fromUserId,
+                                    userName1: fromUserName,
+                                    userId2: toUserId,
+                                    userName2: finalUserName2
+                                )
+                                
+                                // Notify the inviter by creating a session reference for them
+                                let notificationRef = Database.database().reference()
+                                    .child("liveWorkoutNotifications")
+                                    .child(fromUserId)
+                                    .child(sessionId)
+                                
+                                try await withCheckedThrowingContinuation { (notifContinuation: CheckedContinuation<Void, Error>) in
+                                    notificationRef.setValue([
+                                        "sessionId": sessionId,
+                                        "timestamp": Date().timeIntervalSince1970
+                                    ]) { error, _ in
+                                        if let error = error {
+                                            notifContinuation.resume(throwing: error)
+                                        } else {
+                                            notifContinuation.resume()
+                                        }
+                                    }
+                                }
+                                
+                                continuation.resume(returning: sessionId)
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
                         }
                     }
                 }
@@ -1438,16 +1630,20 @@ class RealtimeDatabaseService {
                 return
             }
             
-            // Check if invite is still valid (within 60 seconds)
-            let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 60)
+            // Check if invite is still valid (within 2 minutes)
+            let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 120)
             let now = Date().timeIntervalSince1970
             
             if now <= expirationTimestamp {
+                let toUserName = inviteData["toUserName"] as? String
+                let sessionId = inviteData["sessionId"] as? String
                 completion(LiveWorkoutInvite(
                     inviteId: inviteId,
                     fromUserId: fromUserId,
                     fromUserName: fromUserName,
                     toUserId: toUserId,
+                    toUserName: toUserName,
+                    sessionId: sessionId,
                     status: status,
                     timestamp: Date(timeIntervalSince1970: timestamp)
                 ))
@@ -1494,15 +1690,21 @@ class RealtimeDatabaseService {
                         continue
                     }
                     
-                    // Check if invite is still valid (within 60 seconds)
-                    let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 60)
+                    // Check if invite is still valid (within 2 minutes)
+                    let expirationTimestamp = inviteData["expirationTimestamp"] as? TimeInterval ?? (timestamp + 120)
+                    let isSentInvite = inviteData["isSentInvite"] as? Bool ?? false
                     
+                    // Include both incoming invites and sent invites (for inviter to rejoin)
                     if now <= expirationTimestamp && status == "pending" {
+                        let toUserName = inviteData["toUserName"] as? String
+                        let sessionId = inviteData["sessionId"] as? String
                         invites.append(LiveWorkoutInvite(
                             inviteId: inviteId,
                             fromUserId: fromUserId,
                             fromUserName: fromUserName,
                             toUserId: toUserId,
+                            toUserName: toUserName,
+                            sessionId: sessionId,
                             status: status,
                             timestamp: Date(timeIntervalSince1970: timestamp)
                         ))
@@ -1567,7 +1769,7 @@ class RealtimeDatabaseService {
                               let userId2 = sessionValue["userId2"] as? String,
                               let userName2 = sessionValue["userName2"] as? String,
                               let status = sessionValue["status"] as? String,
-                              status == "active" else {
+                              (status == "active" || status == "waiting") else {
                             return
                         }
                         
@@ -1627,6 +1829,9 @@ class RealtimeDatabaseService {
                 }
             }
             
+            let user1Ready = sessionData["user1Ready"] as? Bool ?? false
+            let user2Ready = sessionData["user2Ready"] as? Bool ?? false
+            
             completion(LiveWorkoutSession(
                 sessionId: sessionId,
                 userId1: userId1,
@@ -1634,7 +1839,9 @@ class RealtimeDatabaseService {
                 userId2: userId2,
                 userName2: userName2,
                 status: status,
-                exercises: exercises
+                exercises: exercises,
+                user1Ready: user1Ready,
+                user2Ready: user2Ready
             ))
         }
     }
@@ -1697,6 +1904,48 @@ class RealtimeDatabaseService {
         
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             setRef.setValue(setDict) { error, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+    
+    /// Update ready status for a user in waiting room
+    func updateReadyStatus(sessionId: String, userId: String, isReady: Bool) async throws {
+        let sessionRef = database.child("liveWorkouts").child(sessionId)
+        
+        // Determine which user this is
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionRef.observeSingleEvent(of: .value) { snapshot, _ in
+                guard let sessionData = snapshot.value as? [String: Any],
+                      let userId1 = sessionData["userId1"] as? String else {
+                    continuation.resume(throwing: NSError(domain: "RealtimeDatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid session"]))
+                    return
+                }
+                
+                let isUser1 = userId == userId1
+                let updateKey = isUser1 ? "user1Ready" : "user2Ready"
+                
+                sessionRef.updateChildValues([updateKey: isReady]) { error, _ in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Start workout when both users are ready
+    func startLiveWorkout(sessionId: String) async throws {
+        let sessionRef = database.child("liveWorkouts").child(sessionId)
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionRef.updateChildValues(["status": "active"]) { error, _ in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -2035,6 +2284,153 @@ class RealtimeDatabaseService {
                 }
             }
         }
+    }
+    
+    // MARK: - Rewards & XP System
+    
+    /// Award XP to a user
+    func awardXP(userId: String, amount: Int) async throws {
+        let userRef = database.child("users").child(userId)
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            userRef.runTransactionBlock { currentData in
+                var value = currentData.value as? [String: Any] ?? [:]
+                let currentXP = value["xp"] as? Int ?? 0
+                value["xp"] = currentXP + amount
+                currentData.value = value
+                return TransactionResult.success(withValue: currentData)
+            } andCompletionBlock: { error, committed, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+    
+    /// Award a badge to a user
+    func awardBadge(userId: String, badge: Badge) async throws {
+        let userRef = database.child("users").child(userId)
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            userRef.runTransactionBlock { currentData in
+                var value = currentData.value as? [String: Any] ?? [:]
+                var badges = value["badges"] as? [[String: Any]] ?? []
+                
+                // Check if badge already exists
+                let badgeExists = badges.contains { ($0["id"] as? String) == badge.id }
+                if !badgeExists {
+                    var badgeDict: [String: Any] = [
+                        "id": badge.id,
+                        "name": badge.name,
+                        "description": badge.description,
+                        "iconName": badge.iconName,
+                        "category": badge.category.rawValue
+                    ]
+                    if let earnedDate = badge.earnedDate {
+                        badgeDict["earnedDateTimestamp"] = earnedDate.timeIntervalSince1970
+                    }
+                    if let challengeId = badge.challengeId {
+                        badgeDict["challengeId"] = challengeId
+                    }
+                    badges.append(badgeDict)
+                    value["badges"] = badges
+                }
+                
+                currentData.value = value
+                return TransactionResult.success(withValue: currentData)
+            } andCompletionBlock: { error, committed, _ in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+    
+    /// Pin a badge to user's profile
+    func pinBadge(userId: String, badgeId: String?) async throws {
+        let userRef = database.child("users").child(userId)
+        let updates: [String: Any] = ["pinnedBadgeId": badgeId as Any]
+        
+        try await updateUserProfile(userId: userId, updates: updates)
+    }
+    
+    /// Get current month's challenge
+    func getCurrentMonthlyChallenge() -> MonthlyChallenge {
+        let calendar = Calendar.current
+        let now = Date()
+        let month = calendar.component(.month, from: now)
+        let year = calendar.component(.year, from: now)
+        
+        let startOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth)!
+        let endOfMonth = calendar.date(byAdding: .day, value: -1, to: nextMonth)!
+        
+        let monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+        let monthName = monthNames[month]
+        
+        // Create challenge badge
+        let challengeBadge = Badge(
+            name: "\(monthName) Warrior",
+            description: "Complete \(getTargetWorkoutsForMonth(month: month)) workouts in \(monthName)",
+            iconName: "flame.fill",
+            category: .monthlyChallenge,
+            challengeId: "\(year)-\(month)"
+        )
+        
+        return MonthlyChallenge(
+            id: "\(year)-\(month)",
+            month: month,
+            year: year,
+            name: "\(monthName) Challenge",
+            description: "Complete \(getTargetWorkoutsForMonth(month: month)) workouts this month",
+            targetWorkouts: getTargetWorkoutsForMonth(month: month),
+            badge: challengeBadge,
+            startDate: startOfMonth,
+            endDate: endOfMonth
+        )
+    }
+    
+    private func getTargetWorkoutsForMonth(month: Int) -> Int {
+        // Different targets for different months (can be customized)
+        switch month {
+        case 1, 2: return 8  // January, February - New Year resolutions
+        case 3, 4, 5: return 12  // Spring months
+        case 6, 7, 8: return 15  // Summer months
+        case 9, 10, 11: return 12  // Fall months
+        case 12: return 10  // December - holiday season
+        default: return 12
+        }
+    }
+    
+    /// Check if user completed monthly challenge and award badge
+    func checkMonthlyChallenge(userId: String) async throws -> Bool {
+        let challenge = getCurrentMonthlyChallenge()
+        let workouts = try await fetchUserWorkoutHistory(userId: userId)
+        
+        // Filter workouts for current month
+        let calendar = Calendar.current
+        let currentMonthWorkouts = workouts.filter { workout in
+            calendar.component(.month, from: workout.date) == challenge.month &&
+            calendar.component(.year, from: workout.date) == challenge.year
+        }
+        
+        // Check if user already has this badge
+        let user = try await fetchUser(userId: userId)
+        let hasBadge = user?.badges.contains { $0.challengeId == challenge.id } ?? false
+        
+        // If challenge completed and badge not awarded
+        if currentMonthWorkouts.count >= challenge.targetWorkouts && !hasBadge {
+            var earnedBadge = challenge.badge
+            earnedBadge.earnedDate = Date()
+            try await awardBadge(userId: userId, badge: earnedBadge)
+            return true
+        }
+        
+        return false
     }
 }
 

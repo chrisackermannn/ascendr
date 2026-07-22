@@ -18,11 +18,14 @@ struct AuthenticationView: View {
     
     var body: some View {
         ZStack {
-            // Background gradient
+            // Home screen gradient background
             LinearGradient(
-                colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                gradient: Gradient(stops: [
+                    .init(color: Color(hex: "0F1318"), location: 0.0),
+                    .init(color: Color(hex: "2B2E34"), location: 1.0)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
             )
             .ignoresSafeArea()
             
@@ -37,7 +40,7 @@ struct AuthenticationView: View {
                             .font(.system(size: 60))
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [.blue, .purple],
+                                    colors: [Color(hex: "FF9E5A"), Color(hex: "F6A267")],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
@@ -215,6 +218,7 @@ struct AuthenticationView: View {
                 }
             }
         }
+        .dismissKeyboardOnTap()
     }
 }
 

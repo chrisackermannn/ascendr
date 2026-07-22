@@ -334,9 +334,13 @@ struct InviteWorkoutView: View {
     let currentUserId: String
     let onInviteSent: () -> Void
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authViewModel: AuthenticationViewModel
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var showingWaitingRoom = false
+    @State private var waitingRoomSessionId: String?
+    @State private var preloadedSessionData: [String: Any]?
+    @State private var preloadedInviteTimestamp: TimeInterval?
     
     var body: some View {
         NavigationView {
@@ -392,7 +396,17 @@ struct InviteWorkoutView: View {
                 }
             }
             .fullScreenCover(isPresented: $showingWaitingRoom) {
-                WaitingRoomView(friendName: friendName, friendId: friendId)
+                if let sessionId = waitingRoomSessionId {
+                    WaitingRoomView(
+                        sessionId: sessionId,
+                        partnerName: friendName,
+                        isInviter: true,
+                        preloadedSessionData: preloadedSessionData,
+                        preloadedInviteTimestamp: preloadedInviteTimestamp
+                    )
+                    .environmentObject(authViewModel)
+                    .environmentObject(AppSettings.shared)
+                }
             }
         }
     }
@@ -405,15 +419,95 @@ struct InviteWorkoutView: View {
             do {
                 let databaseService = RealtimeDatabaseService()
                 if let currentUser = try? await databaseService.fetchUser(userId: currentUserId) {
-                    _ = try await databaseService.sendLiveWorkoutInvite(
+                    let inviteId = try await databaseService.sendLiveWorkoutInvite(
                         from: currentUserId,
                         fromUserName: currentUser.username,
-                        to: friendId
+                        to: friendId,
+                        toUserName: friendName
                     )
+                    
+                    // Create session immediately and go to waiting room
+                    let sessionId = UUID().uuidString
+                    let inviteTimestamp = Date().timeIntervalSince1970
+                    
+                    // PRELOAD: Create session in Firebase FIRST
+                    try await databaseService.createLiveWorkoutSession(
+                        sessionId: sessionId,
+                        userId1: currentUserId,
+                        userName1: currentUser.username,
+                        userId2: friendId,
+                        userName2: friendName
+                    )
+                    
+                    // PRELOAD: Fetch ALL session data immediately and store it
+                    let sessionRef = Database.database().reference().child("liveWorkouts").child(sessionId)
+                    let preloadedData = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any]?, Error>) in
+                        sessionRef.observeSingleEvent(of: .value) { snapshot, error in
+                            if let error = error {
+                                continuation.resume(returning: nil)
+                                return
+                            }
+                            if let data = snapshot.value as? [String: Any] {
+                                continuation.resume(returning: data)
+                            } else {
+                                continuation.resume(returning: nil)
+                            }
+                        }
+                    }
+                    
+                    // Store preloaded data and show waiting room IMMEDIATELY
                     await MainActor.run {
                         isSending = false
+                        waitingRoomSessionId = sessionId
+                        preloadedSessionData = preloadedData
+                        preloadedInviteTimestamp = inviteTimestamp
                         showingWaitingRoom = true
                         onInviteSent()
+                    }
+                    
+                    // Store session ID in invite for reference (for both inviter and invitee)
+                    let inviteeInviteRef = Database.database().reference().child("liveWorkoutInvites").child(friendId).child(inviteId)
+                    let inviterInviteRef = Database.database().reference().child("liveWorkoutInvites").child(currentUserId).child(inviteId)
+                    
+                    // Update invitee's invite
+                    try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        inviteeInviteRef.updateChildValues(["sessionId": sessionId]) { error, _ in
+                            if let error = error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
+                            }
+                        }
+                    }
+                    
+                    // Update inviter's invite
+                    try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        inviterInviteRef.updateChildValues(["sessionId": sessionId]) { error, _ in
+                            if let error = error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
+                            }
+                        }
+                    }
+                    
+                    // Notify invitee about the session
+                    let notificationRef = Database.database().reference()
+                        .child("liveWorkoutNotifications")
+                        .child(friendId)
+                        .child(sessionId)
+                    
+                    try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        notificationRef.setValue([
+                            "sessionId": sessionId,
+                            "timestamp": inviteTimestamp
+                        ]) { error, _ in
+                            if let error = error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
+                            }
+                        }
                     }
                 } else {
                     await MainActor.run {

@@ -11,6 +11,7 @@
 		8F25C7392ECA47EE0040D2CA /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8F25C7382ECA47EE0040D2CA /* FirebaseCore */; };
 		8F25C73B2ECA47EE0040D2CA /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8F25C73A2ECA47EE0040D2CA /* FirebaseDatabase */; };
 		8F25C7582ECC08DA0040D2CA /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 8F25C7572ECC08DA0040D2CA /* FirebaseStorage */; };
+		8F5B86B12ED54AC5006F0D97 /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = 8F5B86B02ED54AC5006F0D97 /* SpotifyiOS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 			files = (
 				8F25C73B2ECA47EE0040D2CA /* FirebaseDatabase in Frameworks */,
 				8F25C7582ECC08DA0040D2CA /* FirebaseStorage in Frameworks */,
+				8F5B86B12ED54AC5006F0D97 /* SpotifyiOS in Frameworks */,
 				8F25C7392ECA47EE0040D2CA /* FirebaseCore in Frameworks */,
 				8F25C7372ECA47EE0040D2CA /* FirebaseAuth in Frameworks */,
 			);
@@ -140,6 +142,7 @@
 				8F25C7382ECA47EE0040D2CA /* FirebaseCore */,
 				8F25C73A2ECA47EE0040D2CA /* FirebaseDatabase */,
 				8F25C7572ECC08DA0040D2CA /* FirebaseStorage */,
+				8F5B86B02ED54AC5006F0D97 /* SpotifyiOS */,
 			);
 			productName = Ascendr;
 			productReference = 8FDFD0992EC9316E001EFD80 /* Ascendr.app */;
@@ -225,6 +228,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8F25C7352ECA47EE0040D2CA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				8F5B86AF2ED54AC5006F0D97 /* XCRemoteSwiftPackageReference "ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8FDFD09A2EC9316E001EFD80 /* Products */;
@@ -435,8 +439,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ascendr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "This app needs access to your music library to display what's currently playing and allow you to skip tracks during workouts.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app requires access to your health data to show step counts.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app tracks fitness progress using your step count.";
+				INFOPLIST_KEY_NSMediaLibraryUsageDescription = "This app needs access to your media library to display and control music during workouts.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
@@ -474,8 +480,10 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ascendr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "This app needs access to your music library to display what's currently playing and allow you to skip tracks during workouts.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app requires access to your health data to show step counts.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app tracks fitness progress using your step count.";
+				INFOPLIST_KEY_NSMediaLibraryUsageDescription = "This app needs access to your media library to display and control music during workouts.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = "Launch Screen";
@@ -633,6 +641,14 @@
 				minimumVersion = 12.6.0;
 			};
 		};
+		8F5B86AF2ED54AC5006F0D97 /* XCRemoteSwiftPackageReference "ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/spotify/ios-sdk";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -655,6 +671,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8F25C7352ECA47EE0040D2CA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		8F5B86B02ED54AC5006F0D97 /* SpotifyiOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8F5B86AF2ED54AC5006F0D97 /* XCRemoteSwiftPackageReference "ios-sdk" */;
+			productName = SpotifyiOS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
